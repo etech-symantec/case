@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>Outlook 메일 타임라인 & 요약 뷰어 (.msg / .eml)</title>
+
+  <!-- ✅ MSGReader: Outlook .msg 파서 (GitHub jsDelivr) -->
+  <script src="https://cdn.jsdelivr.net/gh/ykarpovich/msg.reader/msg.reader.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:#f3f4f6;
+      color:#111827;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: linear-gradient(90deg,#1d4ed8,#0f766e);
+      color:white;
+      padding:12px 20px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      box-shadow:0 2px 6px rgba(0,0,0,0.2);
+    }
+    header .title { font-size:18px; font-weight:600; }
+    header .subtitle { font-size:12px; opacity:0.9; }
+
+    .file-box {
+      display:flex;
+      align-items:center;
+      gap:8px;
+      background:rgba(15,23,42,0.35);
+      border-radius:999px;
+      padding:6px 12px;
+      font-size:11px;
+    }
+    .file-box input[type="file"] {
+      font-size:11px;
+    }
+
+    main {
+      display:flex;
+      gap:16px;
+      padding:16px;
+    }
+    .sidebar {
+      width:260px;
+      max-height:calc(100vh - 64px);
+      overflow:auto;
+      background:white;
+      border-radius:12px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.07);
+      padding:12px;
+      font-size:12px;
+    }
+    .content {
+      flex:1;
+      max-height:calc(100vh - 64px);
+      overflow:auto;
+    }
+
+    .section-title {
+      font-weight:600;
+      margin:4px 0;
+      font-size:13px;
+    }
+    #statsBox {
+      background:#eff6ff;
+      border-radius:8px;
+      padding:8px;
+      line-height:1.5;
+    }
+
+    .toggle-group {
+      display:flex;
+      gap:4px;
+      margin:6px 0 10px;
+    }
+    .toggle-btn {
+      flex:1;
+      padding:6px 8px;
+      border-radius:999px;
+      border:1px solid #d1d5db;
+      background:white;
+      font-size:12px;
+      cursor:pointer;
+    }
+    .toggle-btn.active {
+      background:#1d4ed8;
+      color:white;
+      border-color:#1d4ed8;
+    }
+
+    .thread-list { margin-top:4px; }
+    .thread-item {
+      padding:6px;
+      border-radius:8px;
+      cursor:pointer;
+      margin-bottom:4px;
+    }
+    .thread-item:hover { background:#f3f4f6; }
+    .thread-item.active { background:#1d4ed8; color:white; }
+    .thread-subject {
+      font-size:12px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .thread-meta {
+      font-size:11px;
+      opacity:0.9;
+    }
+
+    /* Drop Zone */
+    #dropZone {
+      border:2px dashed #9ca3af;
+      border-radius:12px;
+      padding:32px;
+      text-align:center;
+      margin-bottom:14px;
+      font-size:13px;
+      color:#6b7280;
+      background:white;
+      transition:all .2s ease;
+    }
+    #dropZone.dragover {
+      border-color:#2563eb;
+      background:#eff6ff;
+      color:#1d4ed8;
+    }
+
+    .controls-row {
+      display:flex;
+      gap:8px;
+      align-items:center;
+      margin-bottom:8px;
+    }
+    .search-input {
+      flex:1;
+      padding:6px 8px;
+      border-radius:999px;
+      border:1px solid #d1d5db;
+      font-size:12px;
+    }
+    .small-btn {
+      font-size:11px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid #d1d5db;
+      background:white;
+      cursor:pointer;
+    }
+    .small-btn:hover { background:#f3f4f6; }
+
+    #viewInfo {
+      font-size:11px;
+      color:#6b7280;
+      margin-bottom:6px;
+    }
+
+    .summary-card {
+      background:#fefce8;
+      border-radius:12px;
+      padding:10px 12px;
+      border:1px solid #facc15;
+      margin-bottom:10px;
+      font-size:12px;
+      white-space:pre-wrap;
+    }
+    .summary-title {
+      font-weight:600;
+      margin-bottom:4px;
+      font-size:12px;
+    }
+    .summary-hint {
+      font-size:11px;
+      color:#6b7280;
+      margin-top:4px;
+    }
+
+    .mail-card {
+      background:white;
+      border-radius:12px;
+      margin-bottom:10px;
+      box-shadow:0 1px 4px rgba(0,0,0,0.06);
+      padding:10px 12px;
+      border-left:3px solid #e5e7eb;
+      font-size:12px;
+    }
+    .mail-header {
+      display:flex;
+      justify-content:space-between;
+      gap:8px;
+      align-items:flex-start;
+    }
+    .mail-subject {
+      font-size:13px;
+      font-weight:600;
+      margin-bottom:2px;
+    }
+    .mail-meta {
+      font-size:11px;
+      color:#6b7280;
+      line-height:1.4;
+    }
+    .mail-date {
+      font-size:11px;
+      color:#4b5563;
+      white-space:nowrap;
+    }
+    .mail-body-preview {
+      margin-top:6px;
+      color:#374151;
+      white-space:pre-wrap;
+    }
+    .mail-body-full {
+      margin-top:6px;
+      border-top:1px dashed #e5e7eb;
+      padding-top:6px;
+      white-space:pre-wrap;
+      display:none;
+      color:#111827;
+    }
+    .mail-tags {
+      margin-top:6px;
+      font-size:11px;
+      color:#6b7280;
+    }
+    .pill {
+      display:inline-block;
+      padding:2px 6px;
+      border-radius:999px;
+      background:#f3f4f6;
+      margin-right:4px;
+      margin-top:2px;
+    }
+    .clickable {
+      color:#2563eb;
+      cursor:pointer;
+      text-decoration:underline;
+      text-decoration-style:dotted;
+    }
+    .empty-state {
+      padding:24px;
+      text-align:center;
+      font-size:12px;
+      color:#6b7280;
+    }
+
+    @media (max-width:900px) {
+      main { flex-direction:column; }
+      .sidebar { width:100%; max-height:none; order:2; }
+      .content { max-height:none; order:1; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <div class="title">Outlook 메일 타임라인 & 요약 뷰어</div>
+      <div class="subtitle">.msg / .eml 파일을 드래그해서 올리면 타임라인·스레드·요약을 한 번에 볼 수 있습니다.</div>
+    </div>
+    <div class="file-box">
+      <span>📎 파일 선택 (.msg, .eml)</span>
+      <input id="fileInput" type="file" multiple accept=".msg,.eml,.txt" />
+    </div>
+  </header>
+
+  <main>
+    <aside class="sidebar">
+      <div class="section-title">개요</div>
+      <div id="statsBox">
+        아직 메일을 불러오지 않았습니다.<br>
+        • 오른쪽 영역의 박스에 .msg / .eml 파일을 드래그하거나<br>
+        • 상단의 파일 선택 버튼으로 업로드해 보세요.
+      </div>
+
+      <div class="section-title" style="margin-top:10px;">보기 모드</div>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="btnTimeline">타임라인 전체</button>
+        <button class="toggle-btn" id="btnThread">선택 스레드</button>
+      </div>
+
+      <div class="section-title">스레드 목록</div>
+      <div style="font-size:11px; color:#6b7280; margin-bottom:4px;">
+        제목(답장/전달 접두어 제거) 기준으로 자동 그룹화합니다.
+      </div>
+      <div id="threadList" class="thread-list"></div>
+    </aside>
+
+    <section class="content">
+      <div id="dropZone">
+        📥 여기로 Outlook 메일 파일(.msg / .eml)을 드래그해서 놓으세요<br>
+        <span style="font-size:11px; color:#9ca3af;">여러 개 한 번에 드랍해도 됩니다.</span>
+      </div>
+
+      <div class="controls-row">
+        <input id="searchInput" class="search-input" placeholder="제목 / 보낸 사람 / 받는 사람 / 본문으로 검색..." />
+        <button id="btnClearSearch" class="small-btn">검색 초기화</button>
+      </div>
+
+      <div id="viewInfo"></div>
+
+      <div id="summaryContainer"></div>
+      <div id="mailContainer"></div>
+    </section>
+  </main>
+
+<script>
+  // ==================== 전역 상태 ====================
+  let allEmails = [];   // {subject, from, to, dateStr, dateObj, body, preview, threadKey, filename, sourceType}
+  let threads   = [];   // {threadKey, subject, count, firstDate, lastDate, participants}
+  let currentView = 'timeline'; // 'timeline' | 'thread'
+  let currentThreadKey = null;
+
+  const fileInput        = document.getElementById('fileInput');
+  const dropZone         = document.getElementById('dropZone');
+  const statsBox         = document.getElementById('statsBox');
+  const threadListEl     = document.getElementById('threadList');
+  const mailContainer    = document.getElementById('mailContainer');
+  const summaryContainer = document.getElementById('summaryContainer');
+  const viewInfo         = document.getElementById('viewInfo');
+  const searchInput      = document.getElementById('searchInput');
+  const btnClearSearch   = document.getElementById('btnClearSearch');
+  const btnTimeline      = document.getElementById('btnTimeline');
+  const btnThread        = document.getElementById('btnThread');
+
+  // ==================== 이벤트 바인딩 ====================
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files && e.target.files.length) {
+      handleFiles(Array.from(e.target.files));
+    }
+  });
+
+  // 드래그 & 드랍 (화면 전체)
+  window.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  window.addEventListener('dragleave', (e) => {
+    // body 영역을 벗어날 때만 제거하고 싶으면 추가 로직 필요하지만,
+    // 간단하게 항상 제거
+    dropZone.classList.remove('dragover');
+  });
+  window.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const files = Array.from(e.dataTransfer.files || []);
+    if (files.length) {
+      handleFiles(files);
+    }
+  });
+
+  btnTimeline.addEventListener('click', () => {
+    currentView = 'timeline';
+    currentThreadKey = null;
+    updateViewButtons();
+    render();
+  });
+  btnThread.addEventListener('click', () => {
+    currentView = 'thread';
+    updateViewButtons();
+    render();
+  });
+
+  btnClearSearch.addEventListener('click', () => {
+    searchInput.value = '';
+    render();
+  });
+  searchInput.addEventListener('input', () => render());
+
+  function updateViewButtons() {
+    btnTimeline.classList.toggle('active', currentView === 'timeline');
+    btnThread.classList.toggle('active', currentView === 'thread');
+  }
+
+  // ==================== 파일 처리 ====================
+  function handleFiles(files) {
+    if (!files || !files.length) return;
+
+    // 초기화하지 않고 추가 모드로 할 수도 있지만,
+    // 일단 간단하게: 새로 올리면 전체 리셋
+    allEmails = [];
+    threads = [];
+    currentThreadKey = null;
+    mailContainer.innerHTML = '';
+    summaryContainer.innerHTML = '';
+    threadListEl.innerHTML = '';
+    viewInfo.textContent = '';
+    statsBox.textContent = '파일을 읽는 중입니다...';
+
+    let remaining = files.length;
+
+    files.forEach(file => {
+      const name = file.name || '';
+      const ext = name.split('.').pop().toLowerCase();
+      const reader = new FileReader();
+
+      reader.onload = (ev) => {
+        try {
+          if (ext === 'msg') {
+            const buffer = ev.target.result;
+            const msgReader = new MSGReader(buffer);
+            const data = msgReader.getFileData();
+            const parsed = convertMsgToEmail(data, name);
+            allEmails.push(parsed);
+          } else {
+            // eml / txt 등 텍스트 메일 형식
+            const raw = ev.target.result;
+            const parsed = parseEml(raw, name);
+            allEmails.push(parsed);
+          }
+        } catch (err) {
+          console.error('파일 파싱 실패:', name, err);
+        } finally {
+          remaining--;
+          if (remaining === 0) {
+            postProcessEmails();
+          }
+        }
+      };
+
+      if (ext === 'msg') {
+        reader.readAsArrayBuffer(file);
+      } else {
+        reader.readAsText(file, 'utf-8');
+      }
+    });
+  }
+
+  // ==================== .msg → 공통 메일 구조 ====================
+  function convertMsgToEmail(data, filename) {
+    // data: MSGReader.getFileData() 결과
+    let subject = data.subject || '(제목 없음)';
+
+    let from = '';
+    if (data.senderEmail || data.senderName) {
+      if (data.senderEmail && data.senderName) {
+        from = `${data.senderName} <${data.senderEmail}>`;
+      } else {
+        from = data.senderEmail || data.senderName;
+      }
+    }
+
+    let to = '';
+    if (Array.isArray(data.recipients) && data.recipients.length) {
+      to = data.recipients.map(r => {
+        if (r.email) {
+          return r.name ? `${r.name} <${r.email}>` : r.email;
+        }
+        return r.name || '';
+      }).join('; ');
+    }
+
+    // body / bodyHtml 중 우선순위 선택
+    let body = data.body || '';
+    if (!body && data.bodyHtml) {
+      body = stripHtmlTags(data.bodyHtml);
+    }
+    body = (body || '').trim();
+
+    // Date 파싱: headers에서 Date: 찾기
+    let dateStr = '';
+    let dateObj = new Date(NaN);
+    if (data.headers) {
+      const m = data.headers.match(/^Date:\s*(.+)$/mi);
+      if (m) {
+        dateStr = m[1].trim();
+        const d = new Date(dateStr);
+        if (!isNaN(d)) dateObj = d;
+      }
+    }
+    // 혹시 messageDeliveryTime 같은 필드가 있으면 보조로 사용
+    if (!dateStr && data.messageDeliveryTime) {
+      dateStr = data.messageDeliveryTime;
+      const d = new Date(dateStr);
+      if (!isNaN(d)) dateObj = d;
+    }
+
+    const preview = makePreview(body);
+    const threadKey = normalizeSubject(subject);
+
+    return {
+      sourceType: 'msg',
+      filename: filename || '',
+      subject,
+      from,
+      to,
+      dateStr,
+      dateObj,
+      body,
+      preview,
+      threadKey
+    };
+  }
+
+  function stripHtmlTags(html) {
+    return String(html).replace(/<\/?[^>]+(>|$)/g, '');
+  }
+
+  // ==================== .eml → 공통 메일 구조 ====================
+  function parseEml(raw, filename) {
+    // 헤더 / 본문 분리
+    const parts = raw.split(/\r?\n\r?\n/);
+    let headerText = parts[0] || '';
+    let bodyText   = parts.slice(1).join('\n\n') || '';
+
+    // 헤더 folding 해제
+    headerText = headerText.replace(/(\r?\n)(\t| )+/g, ' ');
+
+    function getHeader(name) {
+      const re = new RegExp('^' + name + '\\s*:\\s*(.+)$', 'im');
+      const m = headerText.match(re);
+      return m ? m[1].trim() : '';
+    }
+
+    let subject = getHeader('Subject') || '(제목 없음)';
+    const from  = getHeader('From');
+    const to    = getHeader('To');
+    const dateStr = getHeader('Date');
+    const dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
+
+    const cleanBody = cleanBodyText(bodyText);
+    const preview   = makePreview(cleanBody);
+    const threadKey = normalizeSubject(subject);
+
+    return {
+      sourceType: 'eml',
+      filename: filename || '',
+      subject,
+      from,
+      to,
+      dateStr,
+      dateObj,
+      body: cleanBody,
+      preview,
+      threadKey
+    };
+  }
+
+  function cleanBodyText(body) {
+    if (!body) return '';
+    // 인용 블록 제거(> 로 시작하는 줄)
+    body = body.replace(/^\s*>.*$/gm, '');
+    // 흔한 Original Message 머리 제거
+    body = body.replace(/^\s*On .* wrote:\s*$/gmi, '');
+    body = body.replace(/^\s*-----Original Message-----.*$/gmi, '');
+    return body.trim();
+  }
+
+  function makePreview(body) {
+    if (!body) return '(본문 없음)';
+    const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const firstLines = lines.slice(0, 3).join(' ');
+    return firstLines.length > 280 ? firstLines.slice(0, 280) + '…' : firstLines;
+  }
+
+  function normalizeSubject(subject) {
+    if (!subject) return '(no-subject)';
+    let s = subject.toLowerCase().trim();
+    // re:, fw:, fwd:, 답장:, 전달:, 회신: 제거
+    s = s.replace(/^(re|fw|fwd|답장|전달|회신)\s*:\s*/gi, '');
+    // [공지] 같은 Tag 제거
+    s = s.replace(/^\[.*?\]\s*/g, '');
+    return s.trim() || '(no-subject)';
+  }
+
+  // ==================== 후처리: 스레드 구성, 통계, 렌더링 ====================
+  function postProcessEmails() {
+    if (!allEmails.length) {
+      statsBox.textContent = '메일을 파싱하지 못했습니다. .msg / .eml 형식 파일인지 확인해 주세요.';
+      return;
+    }
+
+    // 날짜 기준 정렬
+    allEmails.sort((a, b) => {
+      const t1 = a.dateObj && !isNaN(a.dateObj) ? a.dateObj.getTime() : 0;
+      const t2 = b.dateObj && !isNaN(b.dateObj) ? b.dateObj.getTime() : 0;
+      return t1 - t2;
+    });
+
+    buildThreads();
+    updateStats();
+    buildThreadList();
+
+    currentView = 'timeline';
+    currentThreadKey = null;
+    updateViewButtons();
+    render();
+  }
+
+  function buildThreads() {
+    const map = new Map();
+
+    allEmails.forEach(m => {
+      const key = m.threadKey || '(no-subject)';
+      if (!map.has(key)) {
+        map.set(key, {
+          threadKey: key,
+          subject: m.subject,
+          items: [],
+          firstDate: m.dateObj,
+          lastDate: m.dateObj,
+          participants: new Set()
+        });
+      }
+      const t = map.get(key);
+      t.items.push(m);
+      if (m.dateObj && (!t.firstDate || m.dateObj < t.firstDate)) t.firstDate = m.dateObj;
+      if (m.dateObj && (!t.lastDate || m.dateObj > t.lastDate)) t.lastDate = m.dateObj;
+      if (m.from) t.participants.add(m.from);
+      if (m.to)   t.participants.add(m.to);
+    });
+
+    threads = Array.from(map.values()).map(t => ({
+      threadKey: t.threadKey,
+      subject: t.subject,
+      count: t.items.length,
+      firstDate: t.firstDate,
+      lastDate: t.lastDate,
+      participants: Array.from(t.participants)
+    }));
+
+    // 최근에 오간 스레드 우선
+    threads.sort((a, b) => {
+      const t1 = a.lastDate && !isNaN(a.lastDate) ? a.lastDate.getTime() : 0;
+      const t2 = b.lastDate && !isNaN(b.lastDate) ? b.lastDate.getTime() : 0;
+      if (t2 !== t1) return t2 - t1;
+      return b.count - a.count;
+    });
+  }
+
+  function updateStats() {
+    const total = allEmails.length;
+    const threadCount = threads.length;
+    const msgCount = allEmails.filter(m => m.sourceType === 'msg').length;
+    const emlCount = allEmails.filter(m => m.sourceType === 'eml').length;
+
+    const validDates = allEmails.filter(m => m.dateObj && !isNaN(m.dateObj));
+    let rangeStr = '기간 정보 없음';
+    if (validDates.length) {
+      const first = validDates[0].dateObj;
+      const last  = validDates[validDates.length - 1].dateObj;
+      rangeStr = formatDateTime(first) + ' ~ ' + formatDateTime(last);
+    }
+
+    statsBox.innerHTML = `
+      📨 총 메일: <b>${total}</b>개<br>
+      • MSG: ${msgCount}개 / EML: ${emlCount}개<br>
+      🧵 스레드: <b>${threadCount}</b>개<br>
+      ⏱ 기간: ${rangeStr}
+    `;
+  }
+
+  function buildThreadList() {
+    threadListEl.innerHTML = '';
+    threads.forEach(t => {
+      const div = document.createElement('div');
+      div.className = 'thread-item';
+      if (t.threadKey === currentThreadKey) div.classList.add('active');
+
+      const lastStr = t.lastDate ? formatDateTimeShort(t.lastDate) : '날짜 정보 없음';
+      div.innerHTML = `
+        <div class="thread-subject" title="${escapeHtml(t.subject)}">${escapeHtml(t.subject)}</div>
+        <div class="thread-meta">${t.count}통 · 마지막: ${lastStr}</div>
+      `;
+
+      div.addEventListener('click', () => {
+        currentView = 'thread';
+        currentThreadKey = t.threadKey;
+        updateViewButtons();
+        buildThreadList();
+        render();
+      });
+
+      threadListEl.appendChild(div);
+    });
+  }
+
+  function render() {
+    if (!allEmails.length) {
+      mailContainer.innerHTML = '<div class="empty-state">표시할 메일이 없습니다.</div>';
+      summaryContainer.innerHTML = '';
+      viewInfo.textContent = '';
+      return;
+    }
+
+    let mailsToShow;
+    if (currentView === 'thread' && currentThreadKey) {
+      mailsToShow = allEmails.filter(m => m.threadKey === currentThreadKey);
+    } else {
+      mailsToShow = [...allEmails];
+    }
+
+    const keyword = (searchInput.value || '').toLowerCase().trim();
+    if (keyword) {
+      mailsToShow = mailsToShow.filter(m => {
+        const text = (m.subject || '') + ' ' + (m.from || '') + ' ' + (m.to || '') + ' ' + (m.body || '');
+        return text.toLowerCase().includes(keyword);
+      });
+    }
+
+    // 시간 순으로 재정렬
+    mailsToShow.sort((a, b) => {
+      const t1 = a.dateObj && !isNaN(a.dateObj) ? a.dateObj.getTime() : 0;
+      const t2 = b.dateObj && !isNaN(b.dateObj) ? b.dateObj.getTime() : 0;
+      return t1 - t2;
+    });
+
+    // 뷰 정보
+    if (currentView === 'timeline') {
+      viewInfo.textContent = `전체 타임라인 보기 · 표시 중: ${mailsToShow.length}통`;
+    } else {
+      const th = threads.find(t => t.threadKey === currentThreadKey);
+      const subj = th ? th.subject : '(제목 없음)';
+      viewInfo.textContent = `스레드 보기 · "${subj}" · 표시 중: ${mailsToShow.length}통`;
+    }
+
+    // 스레드 요약
+    summaryContainer.innerHTML = '';
+    if (currentView === 'thread' && currentThreadKey && mailsToShow.length) {
+      const summaryText = buildThreadSummary(mailsToShow);
+      const div = document.createElement('div');
+      div.className = 'summary-card';
+      div.innerHTML = `
+        <div class="summary-title">🧾 스레드 자동 요약 (간단 요약)</div>
+        ${escapeHtml(summaryText)}
+        <div class="summary-hint">
+          ※ 실제 AI 요약이 아니라, 각 메일 앞부분을 모아서 흐름만 간단히 보여줍니다.
+        </div>
+      `;
+      summaryContainer.appendChild(div);
+    }
+
+    // 메일 카드 렌더링
+    mailContainer.innerHTML = '';
+    if (!mailsToShow.length) {
+      mailContainer.innerHTML = `
+        <div class="empty-state">
+          조건에 해당하는 메일이 없습니다.<br>
+          검색어를 지우거나 다른 스레드를 선택해 보세요.
+        </div>`;
+      return;
+    }
+
+    mailsToShow.forEach((m, idx) => {
+      const card = document.createElement('div');
+      card.className = 'mail-card';
+
+      const dtStr = m.dateObj && !isNaN(m.dateObj) ? formatDateTime(m.dateObj) : (m.dateStr || '날짜 정보 없음');
+      const from = m.from || '(보낸 사람 없음)';
+      const to   = m.to   || '(받는 사람 없음)';
+      const threadSubject = findThreadSubject(m.threadKey);
+
+      card.innerHTML = `
+        <div class="mail-header">
+          <div>
+            <div class="mail-subject">${escapeHtml(m.subject)}</div>
+            <div class="mail-meta">
+              From: ${escapeHtml(from)}<br>
+              To: ${escapeHtml(to)}
+            </div>
+          </div>
+          <div class="mail-date">${escapeHtml(dtStr)}</div>
+        </div>
+        <div class="mail-body-preview">
+          ${escapeHtml(m.preview)}
+          <span class="clickable" data-id="toggle-${idx}">더보기</span>
+        </div>
+        <div class="mail-body-full" id="full-${idx}">
+${escapeHtml(m.body)}
+        </div>
+        <div class="mail-tags">
+          <span class="pill">${escapeHtml(threadSubject)}</span>
+          <span class="pill">파일: ${escapeHtml(m.filename || '')}</span>
+          <span class="pill">${m.sourceType === 'msg' ? 'MSG' : 'EML'}</span>
+        </div>
+      `;
+
+      const toggle = card.querySelector(`[data-id="toggle-${idx}"]`);
+      const full   = card.querySelector(`#full-${idx}`);
+      toggle.addEventListener('click', () => {
+        const open = full.style.display === 'block';
+        full.style.display = open ? 'none' : 'block';
+        toggle.textContent = open ? '더보기' : '접기';
+      });
+
+      mailContainer.appendChild(card);
+    });
+  }
+
+  function buildThreadSummary(mails) {
+    if (!mails.length) return '';
+    const first = mails[0];
+    const last  = mails[mails.length - 1];
+    let summary = '';
+
+    summary += `• 대화 기간: ${formatDateTime(first.dateObj)} ~ ${formatDateTime(last.dateObj)}\n`;
+    summary += `• 메일 수: ${mails.length}통\n`;
+
+    const participants = new Set();
+    mails.forEach(m => {
+      if (m.from) participants.add(m.from);
+      if (m.to)   participants.add(m.to);
+    });
+    summary += `• 주요 참여자: ${Array.from(participants).join(', ') || '정보 없음'}\n\n`;
+    summary += '• 흐름:\n';
+
+    mails.forEach((m, i) => {
+      const dt = m.dateObj && !isNaN(m.dateObj) ? formatDateTimeShort(m.dateObj) : (m.dateStr || '');
+      const pv = (m.preview || '').replace(/\s+/g, ' ');
+      summary += `  - [${i+1} / ${dt}] ${pv}\n`;
+    });
+    return summary.trim();
+  }
+
+  function findThreadSubject(threadKey) {
+    const t = threads.find(x => x.threadKey === threadKey);
+    return t ? t.subject : '(제목 없음)';
+  }
+
+  function formatDateTime(d) {
+    if (!(d instanceof Date) || isNaN(d)) return '날짜 정보 없음';
+    const yyyy = d.getFullYear();
+    const mm   = String(d.getMonth()+1).padStart(2, '0');
+    const dd   = String(d.getDate()).padStart(2, '0');
+    const hh   = String(d.getHours()).padStart(2, '0');
+    const mi   = String(d.getMinutes()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+  }
+  function formatDateTimeShort(d) {
+    if (!(d instanceof Date) || isNaN(d)) return '날짜 정보 없음';
+    const mm = String(d.getMonth()+1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mi = String(d.getMinutes()).padStart(2, '0');
+    return `${mm}-${dd} ${hh}:${mi}`;
+  }
+
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+</script>
+</body>
+</html>
