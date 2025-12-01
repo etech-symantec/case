@@ -2,9 +2,9 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 메일 타임라인 & 요약 뷰어 (.msg / .eml)</title>
+  <title>Outlook 케이스 타임라인 분석기 (GitHub 저장)</title>
 
-  <!-- ✅ MSGReader: Outlook .msg 파서 (GitHub jsDelivr) -->
+  <!-- MSG 파일 파서 -->
   <script src="https://cdn.jsdelivr.net/gh/ykarpovich/msg.reader/msg.reader.js"></script>
 
   <style>
@@ -23,111 +23,116 @@
       color:white;
       padding:12px 20px;
       display:flex;
-      align-items:center;
       justify-content:space-between;
+      align-items:center;
       gap:12px;
       box-shadow:0 2px 6px rgba(0,0,0,0.2);
     }
-    header .title { font-size:18px; font-weight:600; }
-    header .subtitle { font-size:12px; opacity:0.9; }
+    .title { font-size:18px; font-weight:600; }
+    .subtitle { font-size:12px; opacity:.9; }
 
     .file-box {
-      display:flex;
-      align-items:center;
-      gap:8px;
-      background:rgba(15,23,42,0.35);
-      border-radius:999px;
-      padding:6px 12px;
+      display:flex; align-items:center; gap:8px;
+      background:rgba(255,255,255,0.2);
+      padding:6px 12px; border-radius:9999px;
       font-size:11px;
     }
-    .file-box input[type="file"] {
-      font-size:11px;
-    }
+    .file-box input[type="file"] { font-size:11px; }
 
-    main {
-      display:flex;
-      gap:16px;
-      padding:16px;
-    }
+    main { display:flex; gap:16px; padding:16px; }
+
     .sidebar {
-      width:260px;
-      max-height:calc(100vh - 64px);
+      width:280px; padding:12px;
+      background:white; border-radius:12px;
+      box-shadow:0 2px 8px rgba(0,0,0,0.08);
+      height:calc(100vh - 70px);
       overflow:auto;
-      background:white;
-      border-radius:12px;
-      box-shadow:0 2px 8px rgba(0,0,0,0.07);
-      padding:12px;
       font-size:12px;
     }
     .content {
-      flex:1;
-      max-height:calc(100vh - 64px);
+      flex:1; height:calc(100vh - 70px);
       overflow:auto;
     }
 
-    .section-title {
-      font-weight:600;
-      margin:4px 0;
-      font-size:13px;
-    }
-    #statsBox {
-      background:#eff6ff;
-      border-radius:8px;
-      padding:8px;
-      line-height:1.5;
-    }
+    .section-title { font-weight:600; margin:6px 0; font-size:13px; }
 
-    .toggle-group {
-      display:flex;
-      gap:4px;
-      margin:6px 0 10px;
+    .gh-config label {
+      display:block;
+      font-size:11px;
+      margin-top:4px;
     }
-    .toggle-btn {
-      flex:1;
-      padding:6px 8px;
-      border-radius:999px;
+    .gh-config input {
+      width:100%;
+      padding:4px 6px;
+      margin-top:2px;
+      border-radius:6px;
       border:1px solid #d1d5db;
-      background:white;
-      font-size:12px;
-      cursor:pointer;
-    }
-    .toggle-btn.active {
-      background:#1d4ed8;
-      color:white;
-      border-color:#1d4ed8;
+      font-size:11px;
     }
 
-    .thread-list { margin-top:4px; }
-    .thread-item {
+    .small-btn {
+      padding:4px 8px;
+      background:white;
+      border-radius:8px;
+      border:1px solid #d1d5db;
+      cursor:pointer;
+      font-size:11px;
+    }
+    .small-btn:hover { background:#f3f4f6; }
+
+    .case-item {
       padding:6px;
       border-radius:8px;
       cursor:pointer;
       margin-bottom:4px;
     }
-    .thread-item:hover { background:#f3f4f6; }
-    .thread-item.active { background:#1d4ed8; color:white; }
-    .thread-subject {
-      font-size:12px;
-      white-space:nowrap;
-      overflow:hidden;
-      text-overflow:ellipsis;
-    }
-    .thread-meta {
-      font-size:11px;
-      opacity:0.9;
+    .case-item:hover { background:#e5e7eb; }
+    .case-item.active { background:#0f766e; color:white; }
+
+    .stats-box {
+      background:#eff6ff;
+      padding:10px;
+      border-radius:8px;
+      margin-bottom:10px;
+      line-height:1.5;
     }
 
-    /* Drop Zone */
+    .toggle-group {
+      display:flex; gap:4px; margin:6px 0 10px;
+    }
+    .toggle-btn {
+      flex:1; padding:6px 8px;
+      border:1px solid #d1d5db;
+      border-radius:999px;
+      background:white;
+      cursor:pointer;
+      font-size:12px;
+    }
+    .toggle-btn.active {
+      background:#1d4ed8; color:white;
+      border-color:#1d4ed8;
+    }
+
+    .thread-item {
+      padding:6px;
+      border-radius:8px;
+      cursor:pointer;
+      margin-bottom:4px;
+      font-size:12px;
+    }
+    .thread-item:hover { background:#f3f4f6; }
+    .thread-item.active { background:#1d4ed8; color:white; }
+
     #dropZone {
       border:2px dashed #9ca3af;
-      border-radius:12px;
-      padding:32px;
-      text-align:center;
-      margin-bottom:14px;
-      font-size:13px;
-      color:#6b7280;
       background:white;
-      transition:all .2s ease;
+      padding:30px;
+      border-radius:12px;
+      text-align:center;
+      font-size:13px;
+      margin-bottom:12px;
+      color:#6b7280;
+      transition:.2s;
     }
     #dropZone.dragover {
       border-color:#2563eb;
@@ -138,7 +143,6 @@
     .controls-row {
       display:flex;
       gap:8px;
-      align-items:center;
       margin-bottom:8px;
     }
     .search-input {
@@ -148,295 +152,375 @@
       border:1px solid #d1d5db;
       font-size:12px;
     }
-    .small-btn {
-      font-size:11px;
-      padding:4px 8px;
-      border-radius:999px;
-      border:1px solid #d1d5db;
-      background:white;
-      cursor:pointer;
-    }
-    .small-btn:hover { background:#f3f4f6; }
-
-    #viewInfo {
-      font-size:11px;
-      color:#6b7280;
-      margin-bottom:6px;
-    }
 
     .summary-card {
       background:#fefce8;
-      border-radius:12px;
-      padding:10px 12px;
       border:1px solid #facc15;
-      margin-bottom:10px;
+      padding:10px;
+      border-radius:12px;
+      margin-bottom:12px;
       font-size:12px;
       white-space:pre-wrap;
-    }
-    .summary-title {
-      font-weight:600;
-      margin-bottom:4px;
-      font-size:12px;
-    }
-    .summary-hint {
-      font-size:11px;
-      color:#6b7280;
-      margin-top:4px;
     }
 
     .mail-card {
       background:white;
       border-radius:12px;
-      margin-bottom:10px;
-      box-shadow:0 1px 4px rgba(0,0,0,0.06);
-      padding:10px 12px;
+      padding:12px;
+      margin-bottom:12px;
+      box-shadow:0 1px 4px rgba(0,0,0,0.08);
       border-left:3px solid #e5e7eb;
       font-size:12px;
     }
     .mail-header {
       display:flex;
       justify-content:space-between;
+      margin-bottom:4px;
       gap:8px;
-      align-items:flex-start;
     }
-    .mail-subject {
-      font-size:13px;
-      font-weight:600;
-      margin-bottom:2px;
-    }
-    .mail-meta {
-      font-size:11px;
-      color:#6b7280;
-      line-height:1.4;
-    }
-    .mail-date {
-      font-size:11px;
-      color:#4b5563;
-      white-space:nowrap;
-    }
+    .mail-subject { font-weight:600; margin-bottom:3px; }
+    .mail-meta { color:#6b7280; font-size:11px; }
+    .mail-date { font-size:11px; color:#374151; white-space:nowrap; }
+
     .mail-body-preview {
       margin-top:6px;
-      color:#374151;
       white-space:pre-wrap;
+      color:#374151;
     }
     .mail-body-full {
+      display:none;
       margin-top:6px;
-      border-top:1px dashed #e5e7eb;
+      border-top:1px dashed #d1d5db;
       padding-top:6px;
       white-space:pre-wrap;
-      display:none;
-      color:#111827;
     }
-    .mail-tags {
-      margin-top:6px;
-      font-size:11px;
-      color:#6b7280;
+    .clickable {
+      color:#2563eb;
+      cursor:pointer;
+      text-decoration:underline dotted;
     }
+
     .pill {
       display:inline-block;
       padding:2px 6px;
       border-radius:999px;
       background:#f3f4f6;
       margin-right:4px;
-      margin-top:2px;
-    }
-    .clickable {
-      color:#2563eb;
-      cursor:pointer;
-      text-decoration:underline;
-      text-decoration-style:dotted;
-    }
-    .empty-state {
-      padding:24px;
-      text-align:center;
-      font-size:12px;
-      color:#6b7280;
+      font-size:11px;
+      margin-top:4px;
     }
 
     @media (max-width:900px) {
       main { flex-direction:column; }
-      .sidebar { width:100%; max-height:none; order:2; }
-      .content { max-height:none; order:1; }
+      .sidebar { width:100%; height:auto; }
+      .content { height:auto; }
     }
   </style>
 </head>
 <body>
-  <header>
-    <div>
-      <div class="title">Outlook 메일 타임라인 & 요약 뷰어</div>
-      <div class="subtitle">.msg / .eml 파일을 드래그해서 올리면 타임라인·스레드·요약을 한 번에 볼 수 있습니다.</div>
+<header>
+  <div>
+    <div class="title">Outlook 케이스 타임라인 분석기 (GitHub)</div>
+    <div class="subtitle">.msg / .eml → 케이스별 타임라인 & 요약, GitHub에 JSON으로 저장</div>
+  </div>
+  <div class="file-box">
+    <span>📎 파일 선택 (.msg / .eml)</span>
+    <input id="fileInput" type="file" multiple accept=".msg,.eml" />
+  </div>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <!-- GitHub 설정 -->
+    <div class="section-title">GitHub 설정 (고정)</div>
+    <div class="gh-config">
+      <label>사용자명</label>
+      <input id="ghUser" value="etech-symantec" readonly />
+      <label>저장소</label>
+      <input id="ghRepo" value="case" readonly />
+      <label>브랜치</label>
+      <input id="ghBranch" value="main" readonly />
+      <label>토큰 (PAT)</label>
+      <input id="ghToken" type="password"
+             value="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"
+             readonly />
+
+      <button id="btnLoadCasesGh" class="small-btn" style="width:100%; margin-top:6px;">
+        GitHub에서 케이스 목록 불러오기
+      </button>
+      <div style="font-size:11px; color:#6b7280; margin-top:4px;">
+        * GitHub 설정은 이 HTML에 고정되어 있습니다.<br>
+        * public에 올리면 안 됩니다.
+      </div>
     </div>
-    <div class="file-box">
-      <span>📎 파일 선택 (.msg, .eml)</span>
-      <input id="fileInput" type="file" multiple accept=".msg,.eml,.txt" />
+
+    <hr style="margin:10px 0;">
+
+    <!-- 케이스 관리 -->
+    <div class="section-title">케이스 관리</div>
+    <button id="addCaseBtn" class="small-btn" style="width:100%;">➕ 케이스 추가하기</button>
+    <div id="caseList" style="margin-top:6px;"></div>
+
+    <hr style="margin:10px 0;">
+
+    <!-- 개요 / 보기 모드 / 스레드 -->
+    <div class="section-title">개요</div>
+    <div id="statsBox" class="stats-box">
+      GitHub에서 <b>케이스 목록 불러오기</b> 버튼을 눌러주세요.
     </div>
-  </header>
 
-  <main>
-    <aside class="sidebar">
-      <div class="section-title">개요</div>
-      <div id="statsBox">
-        아직 메일을 불러오지 않았습니다.<br>
-        • 오른쪽 영역의 박스에 .msg / .eml 파일을 드래그하거나<br>
-        • 상단의 파일 선택 버튼으로 업로드해 보세요.
-      </div>
+    <div class="section-title">보기 모드</div>
+    <div class="toggle-group">
+      <button id="btnTimeline" class="toggle-btn active">타임라인 전체</button>
+      <button id="btnThread" class="toggle-btn">스레드 보기</button>
+    </div>
 
-      <div class="section-title" style="margin-top:10px;">보기 모드</div>
-      <div class="toggle-group">
-        <button class="toggle-btn active" id="btnTimeline">타임라인 전체</button>
-        <button class="toggle-btn" id="btnThread">선택 스레드</button>
-      </div>
+    <div class="section-title">스레드 목록</div>
+    <div id="threadList"></div>
+  </aside>
 
-      <div class="section-title">스레드 목록</div>
-      <div style="font-size:11px; color:#6b7280; margin-bottom:4px;">
-        제목(답장/전달 접두어 제거) 기준으로 자동 그룹화합니다.
-      </div>
-      <div id="threadList" class="thread-list"></div>
-    </aside>
+  <section class="content">
+    <div id="dropZone">
+      📥 이곳에 .msg / .eml 파일을 드래그해서 놓으세요<br>
+      <span style="font-size:11px; color:#9ca3af;">현재 선택된 케이스에 저장됩니다.</span>
+    </div>
 
-    <section class="content">
-      <div id="dropZone">
-        📥 여기로 Outlook 메일 파일(.msg / .eml)을 드래그해서 놓으세요<br>
-        <span style="font-size:11px; color:#9ca3af;">여러 개 한 번에 드랍해도 됩니다.</span>
-      </div>
+    <div class="controls-row">
+      <input id="searchInput" class="search-input" placeholder="제목 / 본문 / 보낸 사람 검색" />
+      <button id="btnClearSearch" class="small-btn">초기화</button>
+    </div>
 
-      <div class="controls-row">
-        <input id="searchInput" class="search-input" placeholder="제목 / 보낸 사람 / 받는 사람 / 본문으로 검색..." />
-        <button id="btnClearSearch" class="small-btn">검색 초기화</button>
-      </div>
+    <div id="viewInfo" style="font-size:11px; margin-bottom:6px;"></div>
 
-      <div id="viewInfo"></div>
-
-      <div id="summaryContainer"></div>
-      <div id="mailContainer"></div>
-    </section>
-  </main>
+    <div id="summaryContainer"></div>
+    <div id="mailContainer"></div>
+  </section>
+</main>
 
 <script>
-  // ==================== 전역 상태 ====================
-  let allEmails = [];   // {subject, from, to, dateStr, dateObj, body, preview, threadKey, filename, sourceType}
-  let threads   = [];   // {threadKey, subject, count, firstDate, lastDate, participants}
+  // ===================== 전역 상태 =====================
+  let githubConfig = {
+    username: 'etech-symantec',
+    repo: 'case',
+    branch: 'main',
+    token: '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'
+  };
+
+  let casesMeta = [];      // [{id, name}]
+  let caseData  = {};      // id -> {id, name, emails: []}
+  let currentCaseId = null;
+
+  // 뷰어 상태
+  let allEmails = [];
+  let threads   = [];
   let currentView = 'timeline'; // 'timeline' | 'thread'
   let currentThreadKey = null;
 
-  const fileInput        = document.getElementById('fileInput');
-  const dropZone         = document.getElementById('dropZone');
-  const statsBox         = document.getElementById('statsBox');
-  const threadListEl     = document.getElementById('threadList');
-  const mailContainer    = document.getElementById('mailContainer');
-  const summaryContainer = document.getElementById('summaryContainer');
-  const viewInfo         = document.getElementById('viewInfo');
-  const searchInput      = document.getElementById('searchInput');
-  const btnClearSearch   = document.getElementById('btnClearSearch');
-  const btnTimeline      = document.getElementById('btnTimeline');
-  const btnThread        = document.getElementById('btnThread');
-
-  // ==================== 이벤트 바인딩 ====================
-  fileInput.addEventListener('change', (e) => {
-    if (e.target.files && e.target.files.length) {
-      handleFiles(Array.from(e.target.files));
+  // ===================== 유틸: Base64 / GitHub =====================
+  function encodeBase64Utf8(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+  function decodeBase64Utf8(b64) {
+    return decodeURIComponent(escape(atob(b64)));
+  }
+  function githubHeaders() {
+    const h = { 'Accept': 'application/vnd.github+json' };
+    if (githubConfig.token) {
+      h['Authorization'] = 'Bearer ' + githubConfig.token;
     }
-  });
-
-  // 드래그 & 드랍 (화면 전체)
-  window.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropZone.classList.add('dragover');
-  });
-  window.addEventListener('dragleave', (e) => {
-    // body 영역을 벗어날 때만 제거하고 싶으면 추가 로직 필요하지만,
-    // 간단하게 항상 제거
-    dropZone.classList.remove('dragover');
-  });
-  window.addEventListener('drop', (e) => {
-    e.preventDefault();
-    dropZone.classList.remove('dragover');
-    const files = Array.from(e.dataTransfer.files || []);
-    if (files.length) {
-      handleFiles(files);
+    return h;
+  }
+  function githubContentUrl(path) {
+    return `https://api.github.com/repos/${githubConfig.username}/${githubConfig.repo}/contents/${path}`;
+  }
+  function ensureRepoConfigured() {
+    if (!githubConfig.username || !githubConfig.repo) {
+      alert('GitHub 설정이 비어 있습니다.');
+      return false;
     }
-  });
-
-  btnTimeline.addEventListener('click', () => {
-    currentView = 'timeline';
-    currentThreadKey = null;
-    updateViewButtons();
-    render();
-  });
-  btnThread.addEventListener('click', () => {
-    currentView = 'thread';
-    updateViewButtons();
-    render();
-  });
-
-  btnClearSearch.addEventListener('click', () => {
-    searchInput.value = '';
-    render();
-  });
-  searchInput.addEventListener('input', () => render());
-
-  function updateViewButtons() {
-    btnTimeline.classList.toggle('active', currentView === 'timeline');
-    btnThread.classList.toggle('active', currentView === 'thread');
+    if (!githubConfig.branch) githubConfig.branch = 'main';
+    return true;
+  }
+  function ensureRepoAndTokenConfigured() {
+    if (!ensureRepoConfigured()) return false;
+    if (!githubConfig.token) {
+      alert('GitHub에 저장하려면 토큰(PAT)이 필요합니다.');
+      return false;
+    }
+    return true;
   }
 
-  // ==================== 파일 처리 ====================
-  function handleFiles(files) {
-    if (!files || !files.length) return;
+  async function githubGetJSON(path) {
+    if (!ensureRepoConfigured()) throw new Error('GitHub Repo 설정 누락');
+    const url = githubContentUrl(path) + `?ref=${githubConfig.branch || 'main'}`;
+    const res = await fetch(url, { headers: githubHeaders() });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error('GitHub GET 실패: ' + res.status);
+    const data = await res.json();
+    const decoded = decodeBase64Utf8(data.content);
+    return JSON.parse(decoded);
+  }
 
-    // 초기화하지 않고 추가 모드로 할 수도 있지만,
-    // 일단 간단하게: 새로 올리면 전체 리셋
-    allEmails = [];
-    threads = [];
-    currentThreadKey = null;
-    mailContainer.innerHTML = '';
-    summaryContainer.innerHTML = '';
-    threadListEl.innerHTML = '';
-    viewInfo.textContent = '';
-    statsBox.textContent = '파일을 읽는 중입니다...';
+  async function githubPutJSON(path, obj, message) {
+    if (!ensureRepoAndTokenConfigured()) throw new Error('GitHub 설정 누락');
+    const url = githubContentUrl(path);
+    let sha = null;
 
-    let remaining = files.length;
+    // 기존 파일 sha 조회
+    const getRes = await fetch(url, { headers: githubHeaders() });
+    if (getRes.status === 200) {
+      const existing = await getRes.json();
+      sha = existing.sha;
+    } else if (getRes.status !== 404) {
+      throw new Error('기존 파일 조회 실패: ' + getRes.status);
+    }
 
-    files.forEach(file => {
-      const name = file.name || '';
-      const ext = name.split('.').pop().toLowerCase();
-      const reader = new FileReader();
+    const body = {
+      message: message || 'update via outlook-case-github-viewer',
+      content: encodeBase64Utf8(JSON.stringify(obj, null, 2)),
+      branch: githubConfig.branch || 'main'
+    };
+    if (sha) body.sha = sha;
 
-      reader.onload = (ev) => {
-        try {
-          if (ext === 'msg') {
-            const buffer = ev.target.result;
-            const msgReader = new MSGReader(buffer);
-            const data = msgReader.getFileData();
-            const parsed = convertMsgToEmail(data, name);
-            allEmails.push(parsed);
-          } else {
-            // eml / txt 등 텍스트 메일 형식
-            const raw = ev.target.result;
-            const parsed = parseEml(raw, name);
-            allEmails.push(parsed);
-          }
-        } catch (err) {
-          console.error('파일 파싱 실패:', name, err);
-        } finally {
-          remaining--;
-          if (remaining === 0) {
-            postProcessEmails();
-          }
-        }
-      };
+    const putRes = await fetch(url, {
+      method: 'PUT',
+      headers: { ...githubHeaders(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!putRes.ok) {
+      const errText = await putRes.text();
+      throw new Error('GitHub 업로드 실패: ' + putRes.status + ' ' + errText);
+    }
+    return await putRes.json();
+  }
 
-      if (ext === 'msg') {
-        reader.readAsArrayBuffer(file);
-      } else {
-        reader.readAsText(file, 'utf-8');
+  // ===================== GitHub 설정 로드/저장 =====================
+  function loadGithubConfigFromLocalStorage() {
+    // 고정값을 그대로 input에 넣기
+    ghUserInput.value   = githubConfig.username;
+    ghRepoInput.value   = githubConfig.repo;
+    ghBranchInput.value = githubConfig.branch;
+    ghTokenInput.value  = githubConfig.token;
+  }
+
+  function saveGithubConfigToLocalStorage() {
+    // 설정 고정이므로 특별히 할 일 없음
+    alert('GitHub 설정은 코드에 고정되어 있습니다.');
+  }
+
+  async function refreshCasesFromGithub() {
+    try {
+      const indexJson = await githubGetJSON('cases/index.json');
+      if (!indexJson) {
+        casesMeta = [];
+        caseData = {};
+        currentCaseId = null;
+        renderCaseList();
+        statsBox.innerHTML = 'GitHub에 아직 케이스 index.json이 없습니다.<br>새 케이스를 생성하고 저장하면 자동으로 만들어집니다.';
+        mailContainer.innerHTML = '';
+        summaryContainer.innerHTML = '';
+        viewInfo.textContent = '';
+        return;
       }
+      casesMeta = indexJson;
+      caseData = {};
+      currentCaseId = null;
+      renderCaseList();
+      statsBox.innerHTML = 'GitHub에서 케이스 목록을 불러왔습니다.<br>좌측에서 케이스를 선택하면 내용을 로딩합니다.';
+      mailContainer.innerHTML = '';
+      summaryContainer.innerHTML = '';
+      viewInfo.textContent = '';
+    } catch (e) {
+      alert('케이스 목록 불러오기 실패: ' + e.message);
+    }
+  }
+
+  // ===================== 케이스 & 뷰어 관련 =====================
+  function renderCaseList() {
+    caseListEl.innerHTML = '';
+    casesMeta.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'case-item' + (c.id === currentCaseId ? ' active' : '');
+      div.textContent = c.name;
+      div.addEventListener('click', () => {
+        currentCaseId = c.id;
+        renderCaseList();
+        loadCaseIntoViewer(c.id);
+      });
+      caseListEl.appendChild(div);
     });
   }
 
-  // ==================== .msg → 공통 메일 구조 ====================
+  async function loadCaseIntoViewer(caseId) {
+    // 메모리에 있으면 그대로 사용
+    if (caseData[caseId]) {
+      allEmails = caseData[caseId].emails || [];
+      currentView = 'timeline';
+      currentThreadKey = null;
+      postProcessEmails();
+      return;
+    }
+    // GitHub에서 불러오기
+    try {
+      const obj = await githubGetJSON(`cases/${caseId}.json`);
+      if (!obj) {
+        alert('해당 케이스 데이터 파일을 찾지 못했습니다.');
+        return;
+      }
+      caseData[caseId] = {
+        id: obj.id,
+        name: obj.name,
+        emails: obj.emails || []
+      };
+      allEmails = caseData[caseId].emails;
+      currentView = 'timeline';
+      currentThreadKey = null;
+      postProcessEmails();
+    } catch (e) {
+      alert('케이스 로딩 실패: ' + e.message);
+    }
+  }
+
+  async function saveCurrentCaseToGithub(showAlert = true) {
+    if (!currentCaseId) return;
+    const meta = casesMeta.find(c => c.id === currentCaseId);
+    if (!meta) return;
+
+    if (!ensureRepoAndTokenConfigured()) return;
+
+    // caseData 갱신
+    const obj = {
+      id: currentCaseId,
+      name: meta.name,
+      emails: allEmails
+    };
+    caseData[currentCaseId] = obj;
+
+    await githubPutJSON(`cases/${currentCaseId}.json`, obj,
+      `Update case ${meta.name} (${currentCaseId})`);
+
+    await githubPutJSON('cases/index.json', casesMeta,
+      'Update cases index');
+    if (showAlert) alert('현재 케이스를 GitHub에 저장했습니다.');
+  }
+
+  // ===================== 메일 파싱 (MSG / EML) =====================
+  function normalizeSubject(subject) {
+    if (!subject) return '(no-subject)';
+    let s = subject.toLowerCase().trim();
+    s = s.replace(/^(re|fw|fwd|답장|전달|회신)\s*:\s*/gi, '');
+    s = s.replace(/^\[.*?\]\s*/g, '');
+    return s.trim() || '(no-subject)';
+  }
+
+  function makePreview(body) {
+    if (!body) return '(본문 없음)';
+    const lines = String(body).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const first = lines.slice(0,3).join(' ');
+    return first.length > 260 ? first.slice(0,260) + '…' : first;
+  }
+
   function convertMsgToEmail(data, filename) {
-    // data: MSGReader.getFileData() 결과
     let subject = data.subject || '(제목 없음)';
 
     let from = '';
@@ -458,14 +542,12 @@
       }).join('; ');
     }
 
-    // body / bodyHtml 중 우선순위 선택
     let body = data.body || '';
     if (!body && data.bodyHtml) {
-      body = stripHtmlTags(data.bodyHtml);
+      body = data.bodyHtml.replace(/<\/?[^>]+(>|$)/g, '');
     }
     body = (body || '').trim();
 
-    // Date 파싱: headers에서 Date: 찾기
     let dateStr = '';
     let dateObj = new Date(NaN);
     if (data.headers) {
@@ -476,14 +558,13 @@
         if (!isNaN(d)) dateObj = d;
       }
     }
-    // 혹시 messageDeliveryTime 같은 필드가 있으면 보조로 사용
     if (!dateStr && data.messageDeliveryTime) {
       dateStr = data.messageDeliveryTime;
       const d = new Date(dateStr);
       if (!isNaN(d)) dateObj = d;
     }
 
-    const preview = makePreview(body);
+    const preview   = makePreview(body);
     const threadKey = normalizeSubject(subject);
 
     return {
@@ -500,18 +581,12 @@
     };
   }
 
-  function stripHtmlTags(html) {
-    return String(html).replace(/<\/?[^>]+(>|$)/g, '');
-  }
-
-  // ==================== .eml → 공통 메일 구조 ====================
   function parseEml(raw, filename) {
-    // 헤더 / 본문 분리
     const parts = raw.split(/\r?\n\r?\n/);
     let headerText = parts[0] || '';
     let bodyText   = parts.slice(1).join('\n\n') || '';
 
-    // 헤더 folding 해제
+    // header folding 해제
     headerText = headerText.replace(/(\r?\n)(\t| )+/g, ' ');
 
     function getHeader(name) {
@@ -526,8 +601,10 @@
     const dateStr = getHeader('Date');
     const dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
 
-    const cleanBody = cleanBodyText(bodyText);
-    const preview   = makePreview(cleanBody);
+    // 인용 블록 간단 제거
+    let body = bodyText.replace(/^\s*>.*$/gm, '').trim();
+
+    const preview   = makePreview(body);
     const threadKey = normalizeSubject(subject);
 
     return {
@@ -538,236 +615,144 @@
       to,
       dateStr,
       dateObj,
-      body: cleanBody,
+      body,
       preview,
       threadKey
     };
   }
 
-  function cleanBodyText(body) {
-    if (!body) return '';
-    // 인용 블록 제거(> 로 시작하는 줄)
-    body = body.replace(/^\s*>.*$/gm, '');
-    // 흔한 Original Message 머리 제거
-    body = body.replace(/^\s*On .* wrote:\s*$/gmi, '');
-    body = body.replace(/^\s*-----Original Message-----.*$/gmi, '');
-    return body.trim();
-  }
-
-  function makePreview(body) {
-    if (!body) return '(본문 없음)';
-    const lines = body.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-    const firstLines = lines.slice(0, 3).join(' ');
-    return firstLines.length > 280 ? firstLines.slice(0, 280) + '…' : firstLines;
-  }
-
-  function normalizeSubject(subject) {
-    if (!subject) return '(no-subject)';
-    let s = subject.toLowerCase().trim();
-    // re:, fw:, fwd:, 답장:, 전달:, 회신: 제거
-    s = s.replace(/^(re|fw|fwd|답장|전달|회신)\s*:\s*/gi, '');
-    // [공지] 같은 Tag 제거
-    s = s.replace(/^\[.*?\]\s*/g, '');
-    return s.trim() || '(no-subject)';
-  }
-
-  // ==================== 후처리: 스레드 구성, 통계, 렌더링 ====================
-  function postProcessEmails() {
-    if (!allEmails.length) {
-      statsBox.textContent = '메일을 파싱하지 못했습니다. .msg / .eml 형식 파일인지 확인해 주세요.';
-      return;
-    }
-
-    // 날짜 기준 정렬
-    allEmails.sort((a, b) => {
-      const t1 = a.dateObj && !isNaN(a.dateObj) ? a.dateObj.getTime() : 0;
-      const t2 = b.dateObj && !isNaN(b.dateObj) ? b.dateObj.getTime() : 0;
-      return t1 - t2;
-    });
-
-    buildThreads();
-    updateStats();
-    buildThreadList();
-
-    currentView = 'timeline';
-    currentThreadKey = null;
-    updateViewButtons();
-    render();
-  }
-
+  // ===================== 후처리 & 렌더링 =====================
   function buildThreads() {
     const map = new Map();
-
     allEmails.forEach(m => {
       const key = m.threadKey || '(no-subject)';
       if (!map.has(key)) {
-        map.set(key, {
-          threadKey: key,
-          subject: m.subject,
-          items: [],
-          firstDate: m.dateObj,
-          lastDate: m.dateObj,
-          participants: new Set()
-        });
+        map.set(key, { threadKey: key, subject: m.subject, items: [] });
       }
-      const t = map.get(key);
-      t.items.push(m);
-      if (m.dateObj && (!t.firstDate || m.dateObj < t.firstDate)) t.firstDate = m.dateObj;
-      if (m.dateObj && (!t.lastDate || m.dateObj > t.lastDate)) t.lastDate = m.dateObj;
-      if (m.from) t.participants.add(m.from);
-      if (m.to)   t.participants.add(m.to);
+      map.get(key).items.push(m);
     });
-
-    threads = Array.from(map.values()).map(t => ({
-      threadKey: t.threadKey,
-      subject: t.subject,
-      count: t.items.length,
-      firstDate: t.firstDate,
-      lastDate: t.lastDate,
-      participants: Array.from(t.participants)
-    }));
-
-    // 최근에 오간 스레드 우선
-    threads.sort((a, b) => {
-      const t1 = a.lastDate && !isNaN(a.lastDate) ? a.lastDate.getTime() : 0;
-      const t2 = b.lastDate && !isNaN(b.lastDate) ? b.lastDate.getTime() : 0;
-      if (t2 !== t1) return t2 - t1;
-      return b.count - a.count;
-    });
+    threads = Array.from(map.values());
   }
 
   function updateStats() {
     const total = allEmails.length;
     const threadCount = threads.length;
-    const msgCount = allEmails.filter(m => m.sourceType === 'msg').length;
-    const emlCount = allEmails.filter(m => m.sourceType === 'eml').length;
-
-    const validDates = allEmails.filter(m => m.dateObj && !isNaN(m.dateObj));
-    let rangeStr = '기간 정보 없음';
-    if (validDates.length) {
-      const first = validDates[0].dateObj;
-      const last  = validDates[validDates.length - 1].dateObj;
-      rangeStr = formatDateTime(first) + ' ~ ' + formatDateTime(last);
-    }
-
-    statsBox.innerHTML = `
-      📨 총 메일: <b>${total}</b>개<br>
-      • MSG: ${msgCount}개 / EML: ${emlCount}개<br>
-      🧵 스레드: <b>${threadCount}</b>개<br>
-      ⏱ 기간: ${rangeStr}
-    `;
+    statsBox.innerHTML = `메일 수: <b>${total}</b>개<br>스레드: <b>${threadCount}</b>개`;
   }
 
-  function buildThreadList() {
+  function renderThreadList() {
     threadListEl.innerHTML = '';
     threads.forEach(t => {
       const div = document.createElement('div');
-      div.className = 'thread-item';
-      if (t.threadKey === currentThreadKey) div.classList.add('active');
-
-      const lastStr = t.lastDate ? formatDateTimeShort(t.lastDate) : '날짜 정보 없음';
-      div.innerHTML = `
-        <div class="thread-subject" title="${escapeHtml(t.subject)}">${escapeHtml(t.subject)}</div>
-        <div class="thread-meta">${t.count}통 · 마지막: ${lastStr}</div>
-      `;
-
+      div.className = 'thread-item' + (t.threadKey === currentThreadKey ? ' active' : '');
+      div.textContent = `${t.subject} (${t.items.length})`;
       div.addEventListener('click', () => {
-        currentView = 'thread';
         currentThreadKey = t.threadKey;
-        updateViewButtons();
-        buildThreadList();
+        currentView = 'thread';
         render();
+        renderThreadList();
       });
-
       threadListEl.appendChild(div);
     });
   }
 
-  function render() {
+  function formatDateTime(d) {
+    if (!(d instanceof Date) || isNaN(d)) return '날짜 정보 없음';
+    const y  = d.getFullYear();
+    const m  = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    const h  = String(d.getHours()).padStart(2,'0');
+    const mi = String(d.getMinutes()).padStart(2,'0');
+    return `${y}-${m}-${dd} ${h}:${mi}`;
+  }
+
+  function buildThreadSummary(list) {
+    if (!list.length) return '';
+    const first = list[0];
+    const last  = list[list.length-1];
+    let s = '';
+    s += `기간: ${formatDateTime(first.dateObj)} ~ ${formatDateTime(last.dateObj)}\n`;
+    s += `메일 수: ${list.length}통\n\n`;
+    s += '흐름:\n';
+    list.forEach((m,i) => {
+      s += `  [${i+1}] ${m.preview}\n`;
+    });
+    return s;
+  }
+
+  function escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;');
+  }
+
+  function postProcessEmails() {
     if (!allEmails.length) {
-      mailContainer.innerHTML = '<div class="empty-state">표시할 메일이 없습니다.</div>';
+      statsBox.textContent = '메일 없음';
+      mailContainer.innerHTML = '';
       summaryContainer.innerHTML = '';
       viewInfo.textContent = '';
       return;
     }
+    allEmails.sort((a,b) => {
+      const t1 = a.dateObj && !isNaN(a.dateObj) ? a.dateObj.getTime() : 0;
+      const t2 = b.dateObj && !isNaN(b.dateObj) ? b.dateObj.getTime() : 0;
+      return t1 - t2;
+    });
+    buildThreads();
+    updateStats();
+    renderThreadList();
+    render();
+  }
 
-    let mailsToShow;
+  function render() {
+    let list;
     if (currentView === 'thread' && currentThreadKey) {
-      mailsToShow = allEmails.filter(m => m.threadKey === currentThreadKey);
+      const th = threads.find(x => x.threadKey === currentThreadKey);
+      list = th ? [...th.items] : [];
     } else {
-      mailsToShow = [...allEmails];
+      list = [...allEmails];
     }
 
-    const keyword = (searchInput.value || '').toLowerCase().trim();
-    if (keyword) {
-      mailsToShow = mailsToShow.filter(m => {
-        const text = (m.subject || '') + ' ' + (m.from || '') + ' ' + (m.to || '') + ' ' + (m.body || '');
-        return text.toLowerCase().includes(keyword);
-      });
+    const kw = (searchInput.value || '').toLowerCase().trim();
+    if (kw) {
+      list = list.filter(m => (m.subject + m.body + m.from + m.to).toLowerCase().includes(kw));
     }
 
-    // 시간 순으로 재정렬
-    mailsToShow.sort((a, b) => {
+    list.sort((a,b) => {
       const t1 = a.dateObj && !isNaN(a.dateObj) ? a.dateObj.getTime() : 0;
       const t2 = b.dateObj && !isNaN(b.dateObj) ? b.dateObj.getTime() : 0;
       return t1 - t2;
     });
 
-    // 뷰 정보
     if (currentView === 'timeline') {
-      viewInfo.textContent = `전체 타임라인 보기 · 표시 중: ${mailsToShow.length}통`;
+      viewInfo.textContent = `전체 타임라인 · ${list.length}통`;
     } else {
-      const th = threads.find(t => t.threadKey === currentThreadKey);
-      const subj = th ? th.subject : '(제목 없음)';
-      viewInfo.textContent = `스레드 보기 · "${subj}" · 표시 중: ${mailsToShow.length}통`;
+      viewInfo.textContent = `스레드 보기 · ${list.length}통`;
     }
 
-    // 스레드 요약
     summaryContainer.innerHTML = '';
-    if (currentView === 'thread' && currentThreadKey && mailsToShow.length) {
-      const summaryText = buildThreadSummary(mailsToShow);
-      const div = document.createElement('div');
-      div.className = 'summary-card';
-      div.innerHTML = `
-        <div class="summary-title">🧾 스레드 자동 요약 (간단 요약)</div>
-        ${escapeHtml(summaryText)}
-        <div class="summary-hint">
-          ※ 실제 AI 요약이 아니라, 각 메일 앞부분을 모아서 흐름만 간단히 보여줍니다.
-        </div>
-      `;
-      summaryContainer.appendChild(div);
+    if (currentView === 'thread' && list.length) {
+      const sum = buildThreadSummary(list);
+      summaryContainer.innerHTML = `<div class="summary-card"><b>스레드 요약</b>\n${escapeHtml(sum)}</div>`;
     }
 
-    // 메일 카드 렌더링
     mailContainer.innerHTML = '';
-    if (!mailsToShow.length) {
-      mailContainer.innerHTML = `
-        <div class="empty-state">
-          조건에 해당하는 메일이 없습니다.<br>
-          검색어를 지우거나 다른 스레드를 선택해 보세요.
-        </div>`;
-      return;
-    }
-
-    mailsToShow.forEach((m, idx) => {
+    list.forEach((m, idx) => {
       const card = document.createElement('div');
       card.className = 'mail-card';
-
-      const dtStr = m.dateObj && !isNaN(m.dateObj) ? formatDateTime(m.dateObj) : (m.dateStr || '날짜 정보 없음');
-      const from = m.from || '(보낸 사람 없음)';
-      const to   = m.to   || '(받는 사람 없음)';
-      const threadSubject = findThreadSubject(m.threadKey);
-
       card.innerHTML = `
         <div class="mail-header">
           <div>
             <div class="mail-subject">${escapeHtml(m.subject)}</div>
             <div class="mail-meta">
-              From: ${escapeHtml(from)}<br>
-              To: ${escapeHtml(to)}
+              From: ${escapeHtml(m.from)}<br>
+              To: ${escapeHtml(m.to)}
             </div>
           </div>
-          <div class="mail-date">${escapeHtml(dtStr)}</div>
+          <div class="mail-date">${escapeHtml(formatDateTime(m.dateObj))}</div>
         </div>
         <div class="mail-body-preview">
           ${escapeHtml(m.preview)}
@@ -777,81 +762,152 @@
 ${escapeHtml(m.body)}
         </div>
         <div class="mail-tags">
-          <span class="pill">${escapeHtml(threadSubject)}</span>
-          <span class="pill">파일: ${escapeHtml(m.filename || '')}</span>
-          <span class="pill">${m.sourceType === 'msg' ? 'MSG' : 'EML'}</span>
+          <span class="pill">${escapeHtml(m.filename)}</span>
+          <span class="pill">${m.sourceType.toUpperCase()}</span>
         </div>
       `;
-
       const toggle = card.querySelector(`[data-id="toggle-${idx}"]`);
       const full   = card.querySelector(`#full-${idx}`);
       toggle.addEventListener('click', () => {
-        const open = full.style.display === 'block';
-        full.style.display = open ? 'none' : 'block';
-        toggle.textContent = open ? '더보기' : '접기';
+        const show = full.style.display === 'block';
+        full.style.display = show ? 'none' : 'block';
+        toggle.textContent = show ? '더보기' : '접기';
       });
-
       mailContainer.appendChild(card);
     });
   }
 
-  function buildThreadSummary(mails) {
-    if (!mails.length) return '';
-    const first = mails[0];
-    const last  = mails[mails.length - 1];
-    let summary = '';
+  // ===================== 파일 업로드 처리 =====================
+  function handleFiles(files) {
+    if (!currentCaseId) {
+      alert('먼저 케이스를 선택하거나 생성하세요.');
+      return;
+    }
 
-    summary += `• 대화 기간: ${formatDateTime(first.dateObj)} ~ ${formatDateTime(last.dateObj)}\n`;
-    summary += `• 메일 수: ${mails.length}통\n`;
+    allEmails = [];
+    threads = [];
+    currentThreadKey = null;
+    statsBox.textContent = '파일 읽는 중…';
 
-    const participants = new Set();
-    mails.forEach(m => {
-      if (m.from) participants.add(m.from);
-      if (m.to)   participants.add(m.to);
+    if (!files || !files.length) return;
+
+    let remaining = files.length;
+
+    files.forEach(file => {
+      const name = file.name || '';
+      const ext  = name.split('.').pop().toLowerCase();
+      const reader = new FileReader();
+
+      reader.onload = ev => {
+        try {
+          if (ext === 'msg') {
+            const buffer = ev.target.result;
+            const msgReader = new MSGReader(buffer);
+            const data = msgReader.getFileData();
+            allEmails.push(convertMsgToEmail(data, name));
+          } else {
+            const raw = ev.target.result;
+            allEmails.push(parseEml(raw, name));
+          }
+        } catch(e) {
+          console.error('파싱 실패:', name, e);
+        } finally {
+          remaining--;
+          if (remaining === 0) {
+            postProcessEmails();
+            // GitHub에 자동 저장 시도
+            saveCurrentCaseToGithub(false).catch(err => {
+              console.error('GitHub 저장 오류:', err);
+              alert('GitHub 저장 중 오류가 발생했습니다: ' + err.message);
+            });
+          }
+        }
+      };
+
+      if (ext === 'msg') reader.readAsArrayBuffer(file);
+      else reader.readAsText(file, 'utf-8');
     });
-    summary += `• 주요 참여자: ${Array.from(participants).join(', ') || '정보 없음'}\n\n`;
-    summary += '• 흐름:\n';
-
-    mails.forEach((m, i) => {
-      const dt = m.dateObj && !isNaN(m.dateObj) ? formatDateTimeShort(m.dateObj) : (m.dateStr || '');
-      const pv = (m.preview || '').replace(/\s+/g, ' ');
-      summary += `  - [${i+1} / ${dt}] ${pv}\n`;
-    });
-    return summary.trim();
   }
 
-  function findThreadSubject(threadKey) {
-    const t = threads.find(x => x.threadKey === threadKey);
-    return t ? t.subject : '(제목 없음)';
-  }
+  // ===================== DOM 엘리먼트 & 이벤트 바인딩 =====================
+  const ghUserInput      = document.getElementById('ghUser');
+  const ghRepoInput      = document.getElementById('ghRepo');
+  const ghBranchInput    = document.getElementById('ghBranch');
+  const ghTokenInput     = document.getElementById('ghToken');
+  const btnLoadCasesGh   = document.getElementById('btnLoadCasesGh');
 
-  function formatDateTime(d) {
-    if (!(d instanceof Date) || isNaN(d)) return '날짜 정보 없음';
-    const yyyy = d.getFullYear();
-    const mm   = String(d.getMonth()+1).padStart(2, '0');
-    const dd   = String(d.getDate()).padStart(2, '0');
-    const hh   = String(d.getHours()).padStart(2, '0');
-    const mi   = String(d.getMinutes()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
-  }
-  function formatDateTimeShort(d) {
-    if (!(d instanceof Date) || isNaN(d)) return '날짜 정보 없음';
-    const mm = String(d.getMonth()+1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    const hh = String(d.getHours()).padStart(2, '0');
-    const mi = String(d.getMinutes()).padStart(2, '0');
-    return `${mm}-${dd} ${hh}:${mi}`;
-  }
+  const addCaseBtn       = document.getElementById('addCaseBtn');
+  const caseListEl       = document.getElementById('caseList');
+  const fileInput        = document.getElementById('fileInput');
+  const dropZone         = document.getElementById('dropZone');
+  const statsBox         = document.getElementById('statsBox');
+  const threadListEl     = document.getElementById('threadList');
+  const mailContainer    = document.getElementById('mailContainer');
+  const summaryContainer = document.getElementById('summaryContainer');
+  const viewInfo         = document.getElementById('viewInfo');
+  const searchInput      = document.getElementById('searchInput');
+  const btnClearSearch   = document.getElementById('btnClearSearch');
+  const btnTimeline      = document.getElementById('btnTimeline');
+  const btnThread        = document.getElementById('btnThread');
 
-  function escapeHtml(str) {
-    if (str == null) return '';
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#39;');
-  }
+  btnLoadCasesGh.addEventListener('click', () => {
+    refreshCasesFromGithub();
+  });
+
+  addCaseBtn.addEventListener('click', () => {
+    if (!ensureRepoConfigured()) return;
+    const name = prompt('케이스 이름을 입력하세요:');
+    if (!name) return;
+    const id = 'case_' + Date.now();
+    casesMeta.push({ id, name });
+    currentCaseId = id;
+    caseData[id] = { id, name, emails: [] };
+    renderCaseList();
+    statsBox.innerHTML = '새 케이스가 생성되었습니다.<br>메일 파일을 업로드하면 GitHub에 저장됩니다.';
+    fileInput.click();
+  });
+
+  fileInput.addEventListener('change', e => {
+    const files = Array.from(e.target.files || []);
+    handleFiles(files);
+  });
+
+  window.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  window.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+  window.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const files = Array.from(e.dataTransfer.files || []);
+    handleFiles(files);
+  });
+
+  btnTimeline.addEventListener('click', () => {
+    currentView = 'timeline';
+    currentThreadKey = null;
+    btnTimeline.classList.add('active');
+    btnThread.classList.remove('active');
+    render();
+  });
+  btnThread.addEventListener('click', () => {
+    currentView = 'thread';
+    btnThread.classList.add('active');
+    btnTimeline.classList.remove('active');
+    render();
+  });
+
+  searchInput.addEventListener('input', () => render());
+  btnClearSearch.addEventListener('click', () => {
+    searchInput.value = '';
+    render();
+  });
+
+  // 초기 설정 로드 (고정값 → input에 세팅)
+  loadGithubConfigFromLocalStorage();
 </script>
 </body>
 </html>
