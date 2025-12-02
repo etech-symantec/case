@@ -650,6 +650,9 @@ function handleFiles(files){
     alert("먼저 케이스를 선택하거나 생성하세요.");
     return;
   }
+
+  console.log("📥 handleFiles() 호출됨, 파일 개수:", files.length);
+
   allEmails = [];
   threads = [];
   currentThreadKey = null;
@@ -661,24 +664,32 @@ function handleFiles(files){
   files.forEach(file=>{
     const name = file.name || "";
     const ext  = name.split(".").pop().toLowerCase();
+
+    console.log("➡ 파일 처리 시작:", name, "확장자:", ext);
+
     const reader = new FileReader();
 
     reader.onload = ev=>{
+      console.log("🔍 파일 로딩 성공:", name);
+
       try{
         if(ext==="msg"){
           const buffer = ev.target.result;
           const msgReader = new MSGReader(buffer);
           const data = msgReader.getFileData();
+          console.log("✔ MSG 파싱 성공:", name, data);
           allEmails.push(convertMsgToEmail(data, name));
         }else{
           const raw = ev.target.result;
+          console.log("✔ EML 텍스트 로딩 성공:", raw.slice(0,200));
           allEmails.push(parseEml(raw, name));
         }
       }catch(e){
-        console.error("파싱 실패:", name, e);
+        console.error("❌ 파싱 실패:", name, e);
       }finally{
         remaining--;
         if(remaining===0){
+          console.log("🎉 모든 파일 파싱 완료:", allEmails);
           postProcessEmails();
           saveCurrentCaseToGithub(false).catch(err=>{
             console.error("GitHub 저장 오류:", err);
@@ -692,6 +703,7 @@ function handleFiles(files){
     else reader.readAsText(file,"utf-8");
   });
 }
+
 
 // ==============================
 //  DOM 참조 & 이벤트 바인딩
