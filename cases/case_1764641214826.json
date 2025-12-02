@@ -1,5 +1,18 @@
 {
   "id": "case_1764641214826",
   "name": "123",
-  "emails": []
+  "emails": [
+    {
+      "sourceType": "eml",
+      "filename": "{Case#80039702} ##High - P2 - SAMSUNG SDS CO_ LTD_-Unknown Error when MC connecting with Reporter v11.msg",
+      "subject": "(제목 없음)",
+      "from": "",
+      "to": "",
+      "body": "",
+      "dateStr": "",
+      "dateObj": null,
+      "preview": "",
+      "threadKey": "(제목 없음)"
+    }
+  ]
 }
