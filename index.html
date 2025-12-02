@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (GitHub 고정값 버전)</title>
+  <title>Outlook 케이스 분석기 (GitHub 토큰 입력)</title>
 
   <!-- MSG Reader -->
   <script src="https://cdn.jsdelivr.net/gh/ykarpovich/msg.reader/msg.reader.js"></script>
@@ -40,9 +40,9 @@
       height:calc(100vh - 80px);
       overflow:auto;
     }
+
     .btn{
-      width:100%;
-      padding:8px 10px;
+      width:100%;padding:8px 10px;
       border-radius:8px;
       border:1px solid #d1d5db;
       background:white;
@@ -51,23 +51,20 @@
       margin-top:6px;
     }
     .btn:hover{background:#f3f4f6;}
+
     .case-item{
-      padding:8px;
-      border-radius:8px;
-      cursor:pointer;
-      margin:4px 0;
+      padding:8px;border-radius:8px;
+      cursor:pointer;margin:4px 0;
     }
     .case-item:hover{background:#e5e7eb;}
     .case-item.active{background:#1d4ed8;color:white;}
+
     #dropZone{
       border:2px dashed #9ca3af;
       background:white;
-      padding:30px;
-      border-radius:12px;
-      text-align:center;
-      font-size:13px;
-      color:#6b7280;
-      margin-bottom:12px;
+      padding:30px;border-radius:12px;
+      text-align:center;font-size:13px;
+      color:#6b7280;margin-bottom:12px;
       transition:.2s;
     }
     #dropZone.dragover{
@@ -75,79 +72,82 @@
       background:#eff6ff;
       color:#1e40af;
     }
+
     .search-input{
       width:100%;padding:8px 12px;
-      border-radius:999px;
-      border:1px solid #d1d5db;
+      border-radius:999px;border:1px solid #d1d5db;
       font-size:13px;
     }
+
     .mail-card{
-      background:white;
-      border-radius:12px;
-      padding:12px;
-      margin-bottom:12px;
+      background:white;border-radius:12px;
+      padding:12px;margin-bottom:12px;
       box-shadow:0 1px 4px rgba(0,0,0,.08);
       border-left:3px solid #e5e7eb;
-      font-size:13px;
     }
-    .mail-header{
-      display:flex;justify-content:space-between;gap:10px;margin-bottom:4px;
+
+    .summary-card{
+      background:#fefce8;border:1px solid #facc15;
+      padding:12px;border-radius:12px;
+      margin-bottom:16px;white-space:pre-wrap;
     }
+
     .pill{
       display:inline-block;padding:2px 6px;
       font-size:11px;border-radius:999px;
       background:#f3f4f6;margin-right:4px;margin-top:4px;
     }
-    .thread-item{padding:6px;border-radius:8px;margin-bottom:4px;cursor:pointer;}
-    .thread-item:hover{background:#f3f4f6;}
-    .thread-item.active{background:#1d4ed8;color:white;}
-    .summary-card{
-      background:#fefce8;
-      border:1px solid #facc15;
-      padding:12px;border-radius:12px;
-      margin-bottom:16px;
-      white-space:pre-wrap;
-      font-size:13px;
-    }
   </style>
 </head>
 
 <body>
-<header>
-  Outlook 케이스 타임라인 분석기 (GitHub 연동 자동 저장)
-</header>
+
+<header>Outlook 케이스 분석기 (GitHub 연동)</header>
 
 <main>
   <aside class="sidebar">
-    <button id="btnLoadCasesGh" class="btn">🔄 GitHub에서 케이스 불러오기</button>
 
-    <div style="margin-top:14px;font-weight:600;">케이스 목록</div>
+    <!-- 🔥 토큰 입력 UI 추가됨 -->
+    <div style="font-weight:600;margin-bottom:4px;">GitHub 토큰 입력</div>
+    <input id="ghToken" type="password"
+           style="width:100%;padding:6px;border:1px solid #ccc;border-radius:6px;"
+           placeholder="Personal Access Token (PAT)">
+    <button id="saveTokenBtn" class="btn">토큰 저장</button>
+
+    <button id="btnLoadCasesGh" class="btn" style="margin-top:14px;">
+      🔄 GitHub에서 케이스 불러오기
+    </button>
+
+    <hr style="margin:12px 0;">
+
+    <div style="font-weight:600;">케이스 목록</div>
     <div id="caseList"></div>
 
     <button id="addCaseBtn" class="btn" style="margin-top:12px;">➕ 새 케이스 만들기</button>
 
     <hr style="margin:12px 0;">
 
-    <div style="font-weight:600;margin-bottom:6px;">보기 모드</div>
+    <div style="font-weight:600;">보기 모드</div>
     <button id="btnTimeline" class="btn" style="background:#dbeafe;">전체 타임라인</button>
     <button id="btnThread" class="btn">스레드 보기</button>
 
     <hr style="margin:12px 0;">
-
-    <div style="font-weight:600;margin-bottom:6px;">스레드 목록</div>
+    <div style="font-weight:600;">스레드 목록</div>
     <div id="threadList"></div>
 
     <hr style="margin:12px 0;">
-    <div id="statsBox" style="font-size:13px;color:#374151;"></div>
+    <div id="statsBox"></div>
+
   </aside>
 
   <section class="content">
     <div id="dropZone">📥 여기에 .msg / .eml 파일 드래그</div>
-    <input id="fileInput" type="file" multiple accept=".msg,.eml" style="margin-bottom:10px;">
+    <input id="fileInput" type="file" multiple accept=".msg,.eml"
+      style="margin-bottom:10px;">
 
     <input id="searchInput" class="search-input" placeholder="검색 (제목 / 본문 / 보낸사람 ...)" style="margin-bottom:10px;">
 
-    <div id="viewInfo" style="font-size:13px;margin:8px 0;"></div>
+    <div id="viewInfo" style="margin:8px 0;"></div>
 
     <div id="summaryContainer"></div>
     <div id="mailContainer"></div>
@@ -156,14 +156,44 @@
 
 <script>
 // ==============================
-//  GitHub 설정 (고정값)
+//  GitHub 고정 설정
 // ==============================
 let githubConfig = {
   username: "etech-symantec",
   repo: "case",
   branch: "main",
-  token: "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"
+  token: "" // 🔥 토큰은 localStorage에서 불러옴
 };
+
+// ==============================
+//  토큰 LocalStorage 로드
+// ==============================
+function loadToken() {
+  const saved = localStorage.getItem("githubToken");
+  if (saved) {
+    githubConfig.token = saved;
+    document.getElementById("ghToken").value = saved;
+  }
+}
+
+// ==============================
+//  토큰 저장 버튼
+// ==============================
+document.addEventListener("DOMContentLoaded", () => {
+  const tokenInput = document.getElementById("ghToken");
+  const saveTokenBtn = document.getElementById("saveTokenBtn");
+
+  saveTokenBtn.addEventListener("click", () => {
+    const t = tokenInput.value.trim();
+    if (!t) {
+      alert("토큰을 입력해주세요.");
+      return;
+    }
+    localStorage.setItem("githubToken", t);
+    githubConfig.token = t;
+    alert("토큰을 저장했습니다. 이 브라우저에서만 사용됩니다.");
+  });
+});
 
 // ==============================
 //  전역 상태
@@ -186,12 +216,14 @@ function encodeBase64Utf8(str){
 function decodeBase64Utf8(b64){
   return decodeURIComponent(escape(atob(b64)));
 }
+
 function githubHeaders(){
   return {
     "Accept": "application/vnd.github+json",
     "Authorization": "Bearer " + githubConfig.token
   };
 }
+
 function githubContentUrl(path){
   return `https://api.github.com/repos/${githubConfig.username}/${githubConfig.repo}/contents/${path}`;
 }
@@ -212,14 +244,17 @@ async function githubGetJSON(path){
 }
 
 // ==============================
-//  GitHub PUT JSON (파일 업로드/갱신)
+//  GitHub PUT JSON
 // ==============================
 async function githubPutJSON(path, obj, msg){
+  if (!githubConfig.token) throw new Error("GitHub 토큰이 필요합니다.");
+
   const url = githubContentUrl(path);
   let sha = null;
 
+  // 기존 파일 SHA 체크
   const check = await fetch(url, { headers: githubHeaders() });
-  if(check.status === 200){
+  if (check.status === 200) {
     const j = await check.json();
     sha = j.sha;
   }
@@ -229,27 +264,34 @@ async function githubPutJSON(path, obj, msg){
     content: encodeBase64Utf8(JSON.stringify(obj, null, 2)),
     branch: githubConfig.branch
   };
-  if(sha) body.sha = sha;
+  if (sha) body.sha = sha;
 
   const res = await fetch(url, {
-    method:"PUT",
-    headers: { ...githubHeaders(), "Content-Type":"application/json" },
+    method: "PUT",
+    headers: { ...githubHeaders(), "Content-Type": "application/json" },
     body: JSON.stringify(body)
   });
-  if(!res.ok){
+
+  if (!res.ok) {
     const t = await res.text();
     throw new Error("GitHub PUT 실패: " + res.status + " " + t);
   }
+
   return await res.json();
 }
 
 // ==============================
-//  케이스 목록 로딩
+//  케이스 목록 불러오기
 // ==============================
 async function refreshCasesFromGithub(){
-  try{
+  try {
+    if (!githubConfig.token) {
+      alert("먼저 토큰을 입력해주세요.");
+      return;
+    }
+
     const list = await githubGetJSON("cases/index.json");
-    if(!list){
+    if (!list) {
       casesMeta = [];
       caseList.textContent = "";
       statsBox.textContent = "GitHub에 케이스가 없습니다.";
@@ -257,41 +299,40 @@ async function refreshCasesFromGithub(){
     }
     casesMeta = list;
     renderCaseList();
-    statsBox.textContent = "GitHub에서 케이스 목록을 불러왔습니다.";
-  }catch(e){
+    statsBox.textContent = "케이스 목록을 불러왔습니다.";
+  } catch(e) {
     alert("케이스 목록 불러오기 실패: " + e.message);
   }
 }
 
 // ==============================
-//  케이스 선택/로드
+//  케이스 불러오기
 // ==============================
 async function loadCaseIntoViewer(caseId){
-  if(caseData[caseId]){
+  if (caseData[caseId]) {
     allEmails = caseData[caseId].emails || [];
     postProcessEmails();
     return;
   }
 
-  try{
+  try {
     const obj = await githubGetJSON(`cases/${caseId}.json`);
-    if(!obj){ alert("케이스 데이터 없음"); return; }
-
+    if (!obj) { alert("케이스 데이터 없음"); return; }
     caseData[caseId] = obj;
     allEmails = obj.emails || [];
     postProcessEmails();
-  }catch(e){
-    alert("케이스 로드 실패: " + e.message);
+  } catch(e) {
+    alert("케이스 로딩 실패: " + e.message);
   }
 }
 
 // ==============================
-//  케이스 저장
+//  케이스 GitHub 저장
 // ==============================
 async function saveCurrentCaseToGithub(showAlert=true){
-  if(!currentCaseId) return;
-  const meta = casesMeta.find(x=>x.id===currentCaseId);
-  if(!meta) return;
+  if (!currentCaseId) return;
+  const meta = casesMeta.find(x => x.id === currentCaseId);
+  if (!meta) return;
 
   const obj = {
     id: currentCaseId,
@@ -306,7 +347,7 @@ async function saveCurrentCaseToGithub(showAlert=true){
   await githubPutJSON(`cases/index.json`, casesMeta,
     "Update case index");
 
-  if(showAlert) alert("GitHub 저장 완료");
+  if (showAlert) alert("GitHub 저장 완료");
 }
 
 // ==============================
@@ -315,7 +356,7 @@ async function saveCurrentCaseToGithub(showAlert=true){
 function normalizeSubject(subject){
   if(!subject) return "(no-subject)";
   let s = subject.toLowerCase();
-  s = s.replace(/^(re|fw|fwd|회신|전달|답장)\s*:\s*/gi, "");
+  s = s.replace(/^(re|fw|fwd|회신|답장|전달)\s*:\s*/gi, "");
   s = s.replace(/^\[.*?\]\s*/g, "");
   s = s.trim();
   return s || "(no-subject)";
@@ -325,7 +366,7 @@ function makePreview(body){
   if(!body) return "(본문 없음)";
   const lines = body.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
   const first = lines.slice(0,3).join(" ");
-  return first.length>260 ? first.slice(0,260)+"…" : first;
+  return first.length > 260 ? first.slice(0,260)+"…" : first;
 }
 
 // ==============================
@@ -335,46 +376,48 @@ function convertMsgToEmail(data, filename){
   const subject = data.subject || "(제목 없음)";
 
   let from = "";
-  if(data.senderEmail || data.senderName){
-    if(data.senderEmail && data.senderName)
+  if (data.senderEmail || data.senderName) {
+    if (data.senderEmail && data.senderName)
       from = `${data.senderName} <${data.senderEmail}>`;
     else from = data.senderEmail || data.senderName;
   }
 
   let to = "";
-  if(Array.isArray(data.recipients)){
+  if (Array.isArray(data.recipients)) {
     to = data.recipients
-      .map(r => r.email ? `${r.name||""} <${r.email}>` : r.name||"")
+      .map(r => r.email ? `${r.name||""} <${r.email}>` : r.name || "")
       .join("; ");
   }
 
   let body = data.body || "";
-  if(!body && data.bodyHtml)
-    body = data.bodyHtml.replace(/<\/?[^>]+>/g,"");
+  if (!body && data.bodyHtml)
+    body = data.bodyHtml.replace(/<\/?[^>]+>/g, "");
 
-  body = (body||"").trim();
+  body = (body || "").trim();
 
-  let dateStr="", dateObj=new Date(NaN);
-  if(data.headers){
+  let dateStr = "", dateObj = new Date(NaN);
+  if (data.headers) {
     const m = data.headers.match(/^Date:\s*(.+)$/mi);
-    if(m){ dateStr=m[1].trim(); const d=new Date(dateStr); if(!isNaN(d)) dateObj=d; }
+    if (m) {
+      dateStr = m[1].trim();
+      const d = new Date(dateStr);
+      if (!isNaN(d)) dateObj = d;
+    }
   }
-  if(!dateStr && data.messageDeliveryTime){
+
+  if (!dateStr && data.messageDeliveryTime) {
     dateStr = data.messageDeliveryTime;
     const d = new Date(dateStr);
-    if(!isNaN(d)) dateObj = d;
+    if (!isNaN(d)) dateObj = d;
   }
 
-  const preview = makePreview(body);
-  const threadKey = normalizeSubject(subject);
-
   return {
-    sourceType:"msg",
-    filename: filename,
-    subject, from, to,
+    sourceType: "msg",
+    filename, subject, from, to,
     dateStr, dateObj,
-    body, preview,
-    threadKey
+    body,
+    preview: makePreview(body),
+    threadKey: normalizeSubject(subject)
   };
 }
 
@@ -400,18 +443,15 @@ function parseEml(raw, filename){
   const dateStr = getHeader("Date");
   const dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
 
-  let body = bodyText.replace(/^\s*>.*$/gm,"").trim();
-
-  const preview = makePreview(body);
-  const threadKey = normalizeSubject(subject);
+  let body = bodyText.replace(/^\s*>.*$/gm, "").trim();
 
   return {
-    sourceType:"eml",
-    filename,
-    subject, from, to,
+    sourceType: "eml",
+    filename, subject, from, to,
     dateStr, dateObj,
-    body, preview,
-    threadKey
+    body,
+    preview: makePreview(body),
+    threadKey: normalizeSubject(subject)
   };
 }
 </script>
@@ -425,7 +465,7 @@ function buildThreads(){
   allEmails.forEach(m=>{
     const key = m.threadKey || "(no-subject)";
     if(!map.has(key)){
-      map.set(key, { threadKey:key, subject:m.subject, items:[] });
+      map.set(key,{threadKey:key,subject:m.subject,items:[]});
     }
     map.get(key).items.push(m);
   });
@@ -442,9 +482,9 @@ function renderThreadList(){
   threadList.innerHTML = "";
   threads.forEach(t=>{
     const div = document.createElement("div");
-    div.className = "thread-item" + (t.threadKey===currentThreadKey ? " active":"");
+    div.className = "case-item" + (t.threadKey===currentThreadKey ? " active":"");
     div.textContent = `${t.subject} (${t.items.length})`;
-    div.addEventListener("click", ()=>{
+    div.addEventListener("click",()=>{
       currentThreadKey = t.threadKey;
       currentView = "thread";
       render();
@@ -456,11 +496,11 @@ function renderThreadList(){
 
 function formatDateTime(d){
   if(!(d instanceof Date) || isNaN(d)) return "날짜 정보 없음";
-  const y  = d.getFullYear();
-  const m  = String(d.getMonth()+1).padStart(2,"0");
-  const dd = String(d.getDate()).padStart(2,"0");
-  const h  = String(d.getHours()).padStart(2,"0");
-  const mi = String(d.getMinutes()).padStart(2,"0");
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const dd= String(d.getDate()).padStart(2,"0");
+  const h = String(d.getHours()).padStart(2,"0");
+  const mi= String(d.getMinutes()).padStart(2,"0");
   return `${y}-${m}-${dd} ${h}:${mi}`;
 }
 
@@ -528,11 +568,10 @@ function render(){
     return t1 - t2;
   });
 
-  if(currentView==="timeline"){
-    viewInfo.textContent = `전체 타임라인 · ${list.length}통`;
-  }else{
-    viewInfo.textContent = `스레드 보기 · ${list.length}통`;
-  }
+  viewInfo.textContent =
+    currentView === "timeline"
+      ? `전체 타임라인 · ${list.length}통`
+      : `스레드 보기 · ${list.length}통`;
 
   summaryContainer.innerHTML = "";
   if(currentView==="thread" && list.length){
@@ -548,7 +587,7 @@ function render(){
     const card = document.createElement("div");
     card.className = "mail-card";
     card.innerHTML = `
-      <div class="mail-header">
+      <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px;">
         <div>
           <div style="font-weight:600;margin-bottom:4px;">${escapeHtml(m.subject)}</div>
           <div style="font-size:12px;color:#4b5563;">
@@ -560,11 +599,13 @@ function render(){
           ${escapeHtml(formatDateTime(m.dateObj))}
         </div>
       </div>
-      <div style="font-size:13px;color:#111827;white-space:pre-wrap;margin-top:6px;">
+      <div style="font-size:13px;white-space:pre-wrap;margin-top:6px;">
         ${escapeHtml(m.preview)}
-        <span class="clickable" data-id="toggle-${idx}" style="color:#2563eb;cursor:pointer;">더보기</span>
+        <span class="clickable" data-id="toggle-${idx}"
+          style="color:#2563eb;cursor:pointer;">더보기</span>
       </div>
-      <div class="mail-body-full" id="full-${idx}">
+      <div class="mail-body-full" id="full-${idx}"
+           style="display:none;border-top:1px dashed #e5e7eb;margin-top:6px;padding-top:6px;white-space:pre-wrap;">
 ${escapeHtml(m.body||"")}
       </div>
       <div style="margin-top:4px;">
@@ -574,7 +615,7 @@ ${escapeHtml(m.body||"")}
     `;
     const toggle = card.querySelector(`[data-id="toggle-${idx}"]`);
     const full   = card.querySelector(`#full-${idx}`);
-    toggle.addEventListener("click", ()=>{
+    toggle.addEventListener("click",()=>{
       const show = full.style.display==="block";
       full.style.display = show ? "none" : "block";
       toggle.textContent = show ? "더보기" : "접기";
@@ -592,7 +633,7 @@ function renderCaseList(){
     const div = document.createElement("div");
     div.className = "case-item" + (c.id===currentCaseId ? " active":"");
     div.textContent = c.name;
-    div.addEventListener("click", ()=>{
+    div.addEventListener("click",()=>{
       currentCaseId = c.id;
       renderCaseList();
       loadCaseIntoViewer(c.id);
@@ -655,27 +696,27 @@ function handleFiles(files){
 // ==============================
 //  DOM 참조 & 이벤트 바인딩
 // ==============================
-const caseList        = document.getElementById("caseList");
-const statsBox        = document.getElementById("statsBox");
-const threadList      = document.getElementById("threadList");
-const dropZone        = document.getElementById("dropZone");
-const fileInput       = document.getElementById("fileInput");
-const searchInput     = document.getElementById("searchInput");
-const viewInfo        = document.getElementById("viewInfo");
-const summaryContainer= document.getElementById("summaryContainer");
-const mailContainer   = document.getElementById("mailContainer");
-const btnTimeline     = document.getElementById("btnTimeline");
-const btnThread       = document.getElementById("btnThread");
-const addCaseBtn      = document.getElementById("addCaseBtn");
-const btnLoadCasesGh  = document.getElementById("btnLoadCasesGh");
+const caseList         = document.getElementById("caseList");
+const statsBox         = document.getElementById("statsBox");
+const threadList       = document.getElementById("threadList");
+const dropZone         = document.getElementById("dropZone");
+const fileInput        = document.getElementById("fileInput");
+const searchInput      = document.getElementById("searchInput");
+const viewInfo         = document.getElementById("viewInfo");
+const summaryContainer = document.getElementById("summaryContainer");
+const mailContainer    = document.getElementById("mailContainer");
+const btnTimeline      = document.getElementById("btnTimeline");
+const btnThread        = document.getElementById("btnThread");
+const addCaseBtn       = document.getElementById("addCaseBtn");
+const btnLoadCasesGh   = document.getElementById("btnLoadCasesGh");
 
 // GitHub에서 케이스 불러오기
-btnLoadCasesGh.addEventListener("click", ()=>{
+btnLoadCasesGh.addEventListener("click",()=>{
   refreshCasesFromGithub();
 });
 
 // 새 케이스 만들기
-addCaseBtn.addEventListener("click", ()=>{
+addCaseBtn.addEventListener("click",()=>{
   const name = prompt("케이스 이름을 입력하세요:");
   if(!name) return;
   const id = "case_" + Date.now();
@@ -683,24 +724,24 @@ addCaseBtn.addEventListener("click", ()=>{
   currentCaseId = id;
   caseData[id] = {id,name,emails:[]};
   renderCaseList();
-  statsBox.textContent = "새 케이스가 생성되었습니다. 메일 파일을 업로드하면 자동으로 GitHub에 저장됩니다.";
+  statsBox.textContent = "새 케이스가 생성되었습니다. 메일 업로드 시 GitHub에 저장됩니다.";
 });
 
 // 파일 선택
-fileInput.addEventListener("change", e=>{
+fileInput.addEventListener("change",e=>{
   const files = Array.from(e.target.files||[]);
   handleFiles(files);
 });
 
 // 드래그&드랍
-window.addEventListener("dragover", e=>{
+window.addEventListener("dragover",e=>{
   e.preventDefault();
   dropZone.classList.add("dragover");
 });
-window.addEventListener("dragleave", e=>{
+window.addEventListener("dragleave",()=>{
   dropZone.classList.remove("dragover");
 });
-window.addEventListener("drop", e=>{
+window.addEventListener("drop",e=>{
   e.preventDefault();
   dropZone.classList.remove("dragover");
   const files = Array.from(e.dataTransfer.files||[]);
@@ -708,14 +749,14 @@ window.addEventListener("drop", e=>{
 });
 
 // 보기 모드 전환
-btnTimeline.addEventListener("click", ()=>{
+btnTimeline.addEventListener("click",()=>{
   currentView = "timeline";
   currentThreadKey = null;
   btnTimeline.style.background = "#dbeafe";
   btnThread.style.background   = "white";
   render();
 });
-btnThread.addEventListener("click", ()=>{
+btnThread.addEventListener("click",()=>{
   currentView = "thread";
   btnThread.style.background   = "#dbeafe";
   btnTimeline.style.background = "white";
@@ -723,10 +764,11 @@ btnThread.addEventListener("click", ()=>{
 });
 
 // 검색
-searchInput.addEventListener("input", ()=>render());
+searchInput.addEventListener("input",()=>render());
 
 // 초기 상태
-statsBox.textContent = "GitHub에서 케이스를 불러오거나, 새 케이스를 만든 뒤 메일을 올려주세요.";
+loadToken(); // 🔥 저장돼 있던 토큰 자동 로드
+statsBox.textContent = "먼저 토큰을 입력 후, GitHub에서 케이스를 불러오거나 새 케이스를 만드세요.";
 </script>
 
 </body>
