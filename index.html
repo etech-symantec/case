@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용)</title>
+  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -87,7 +87,7 @@
 <header>
   <div>
     <div class="title">Outlook 케이스 타임라인 분석기</div>
-    <div class="subtitle">EML 전용 · emailjs-mime-parser 기반 · GitHub JSON 저장</div>
+    <div class="subtitle">EML 전용 · emailjs-mime-parser 기반 · GitHub JSON 저장 · 텍스트 뷰어</div>
   </div>
   <div class="file-box">
     <span>📎 EML 파일 선택</span>
@@ -146,7 +146,7 @@
   </section>
 </main>
 
-<!-- 메인 로직: emailjs-mime-parser 모듈 사용 -->
+<!-- 메인 로직 -->
 <script type="module">
   import parseMime from "https://esm.run/emailjs-mime-parser@2.0.6";
 
@@ -250,15 +250,68 @@
   }
 
   /* --------------------------
-     emailjs-mime-parser 기반 EML 파서
+     MIME 디코딩 유틸 (텍스트 전용)
+  -------------------------- */
+  function decodeQuotedPrintable(str){
+    if(!str) return "";
+    // soft line break (= + CRLF) 제거
+    str = str.replace(/=\r?\n/g, "");
+    // =XX → 해당 문자
+    return str.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
+      try{
+        return String.fromCharCode(parseInt(hex,16));
+      }catch(e){
+        return m;
+      }
+    });
+  }
+
+  function decodeBase64ToUtf8(str){
+    if(!str) return "";
+    try{
+      const cleaned = str.replace(/\s+/g,"");
+      return decodeURIComponent(escape(atob(cleaned)));
+    }catch(e){
+      try{
+        return atob(str.replace(/\s+/g,""));
+      }catch(e2){
+        return str;
+      }
+    }
+  }
+
+  function cleanupPlainText(body){
+    if(!body) return "";
+    let out = body;
+    // 앞뒤 공백 정리
+    out = out.replace(/\r\n/g,"\n");
+    // MIME 경계선, Content-* 헤더 같은 라인 제거
+    out = out.split("\n").filter(line=>{
+      const trimmed = line.trim();
+      if(!trimmed) return true; // 빈 줄은 유지
+      if(/^--[0-9A-Za-z'()+_,-\.\/:=?]{10,}$/.test(trimmed)) return false; // boundary
+      if(/^content-(type|transfer-encoding|id|disposition)/i.test(trimmed)) return false;
+      if(/^mime-version:/i.test(trimmed)) return false;
+      return true;
+    }).join("\n");
+
+    // 연속 빈 줄 3개 이상 → 2개로 축소
+    out = out.replace(/\n{3,}/g,"\n\n");
+
+    return out.trim();
+  }
+
+  /* --------------------------
+     emailjs-mime-parser + 수동 MIME 파싱 기반 EML 파서
+     → "실제 메일 내용" 텍스트만 추출
   -------------------------- */
   function parseEml(raw, filename){
-    // 1) 헤더 / 바디 블록 분리 (fallback용)
+    // 1) 전역 헤더/바디 분리
     const parts = raw.split(/\r?\n\r?\n/);
     let headerText = parts[0] || "";
     let bodyFallback = parts.slice(1).join("\n\n") || "";
 
-    // header folding 줄 개행 정리
+    // header folding 정리
     headerText = headerText.replace(/(\r?\n)(\t| )+/g," ");
 
     function getHeader(name){
@@ -268,38 +321,45 @@
     }
 
     let subject = getHeader("Subject") || "(제목 없음)";
-    let from = getHeader("From");
-    let to = getHeader("To");
+    let from    = getHeader("From");
+    let to      = getHeader("To");
     let dateStr = getHeader("Date");
     let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
 
-    // 2) emailjs-mime-parser로 MIME 구조 파싱
+    // Content-Type (multipart 여부 + boundary)
+    const ctHeader = getHeader("Content-Type");
+    let boundary = "";
+    if(ctHeader){
+      const m = ctHeader.match(/boundary\s*=\s*("?)([^";\r\n]+)\1/i);
+      if(m) boundary = m[2];
+    }
+
+    // 2) emailjs-mime-parser 시도 (안정되면 이 결과 사용)
     let bodyText = "";
     try{
-      const root = parseMime(raw);  // MimeNode
+      const bytes = new TextEncoder().encode(raw);
+      const root = parseMime(bytes);
 
-      // 첫 text/plain 파트 찾기
-      function findTextPart(node){
+      function findTextPlain(node){
         if(!node) return null;
         const ct = node.contentType || {};
-        const type = (ct.type || "").toLowerCase();
-        const sub  = (ct.subtype || "").toLowerCase();
-
+        const type = (ct.type||"").toLowerCase();
+        const sub  = (ct.subtype||"").toLowerCase();
         if(type==="text" && sub==="plain"){
           return node;
         }
         if(node.childNodes && node.childNodes.length){
           for(const ch of node.childNodes){
-            const r = findTextPart(ch);
+            const r = findTextPlain(ch);
             if(r) return r;
           }
         }
         return null;
       }
 
-      const textNode = findTextPart(root);
+      const textNode = findTextPlain(root);
 
-      function decodeContent(node){
+      function decodeNodeContent(node){
         if(!node || node.content==null) return "";
         if(typeof node.content === "string") return node.content;
         if(node.content instanceof Uint8Array){
@@ -314,16 +374,15 @@
       }
 
       if(textNode){
-        bodyText = decodeContent(textNode).trim();
+        bodyText = decodeNodeContent(textNode);
       }
 
-      // 헤더를 MimeNode 기준으로 한 번 더 보정 (있으면 사용)
+      // emailjs 헤더 기준으로 subject/from/to/date 보정 (있으면)
       if(root.headers){
         const h = root.headers;
         const getMimeHeader = (key)=>{
           const v = h[key];
           if(!v) return "";
-          // emailjs-mime-parser는 { value: "...", params: {...} } 배열 구조인 경우가 많음
           if(Array.isArray(v) && v.length){
             if(typeof v[0]==="string") return v[0];
             if(typeof v[0].value==="string") return v[0].value;
@@ -336,24 +395,76 @@
         const date2 = getMimeHeader("date");
 
         if(subj2) subject = subj2;
-        if(from2) from = from2;
-        if(to2)   to   = to2;
+        if(from2) from   = from2;
+        if(to2)   to     = to2;
         if(date2){
           dateStr = date2;
           const d2 = new Date(date2);
-          if(!isNaN(d2)) dateObj=d2;
+          if(!isNaN(d2)) dateObj = d2;
+        }
+      }
+    }catch(e){
+      console.warn("emailjs-mime-parser 파싱 오류, 수동 파서로 처리:", e);
+      bodyText = "";
+    }
+
+    // 3) emailjs 결과가 비어있거나 MIME 쓰레기가 남아 있으면 수동 fallback 로직
+    const looksLikeMimeGarbage = (txt)=>{
+      if(!txt) return true;
+      if(/content-transfer-encoding:/i.test(txt)) return true;
+      if(/content-type:/i.test(txt)) return true;
+      if(/^-{10,}/m.test(txt)) return true;
+      return false;
+    };
+
+    if(!bodyText || looksLikeMimeGarbage(bodyText)){
+      // multipart + boundary 가 있으면 text/plain 파트만 수동 추출
+      let chosenBody = "";
+      let encoding = "7bit";
+
+      if(boundary){
+        const boundaryRe = new RegExp(`--${boundary}[\\s\\S]*?Content-Type:\\s*text\\/plain[\\s\\S]*?(?=\\r?\\n--${boundary}|$)`,"i");
+        const partMatch = raw.match(boundaryRe);
+        if(partMatch){
+          const part = partMatch[0];
+          const encMatch = part.match(/Content-Transfer-Encoding:\s*([^\r\n]+)/i);
+          if(encMatch){
+            encoding = encMatch[1].trim().toLowerCase();
+          }
+          const splitIdx = part.search(/\r?\n\r?\n/);
+          let bodyRaw = splitIdx>=0 ? part.slice(splitIdx).replace(/^\r?\n/,"") : part;
+          if(encoding==="quoted-printable"){
+            chosenBody = decodeQuotedPrintable(bodyRaw);
+          }else if(encoding==="base64"){
+            chosenBody = decodeBase64ToUtf8(bodyRaw);
+          }else{
+            chosenBody = bodyRaw;
+          }
+        }else{
+          // boundary 있지만 text/plain 못 찾으면 전체 바디 fallback
+          chosenBody = bodyFallback;
+        }
+      }else{
+        // multipart 아님 → 그냥 전체 바디 디코딩 시도
+        let encodingTop = "7bit";
+        const encMatchTop = headerText.match(/Content-Transfer-Encoding:\s*([^\r\n]+)/i);
+        if(encMatchTop){
+          encodingTop = encMatchTop[1].trim().toLowerCase();
+        }
+        if(encodingTop==="quoted-printable"){
+          chosenBody = decodeQuotedPrintable(bodyFallback);
+        }else if(encodingTop==="base64"){
+          chosenBody = decodeBase64ToUtf8(bodyFallback);
+        }else{
+          chosenBody = bodyFallback;
         }
       }
 
-      // 혹시 본문 추출 실패하면 fallback
-      if(!bodyText){
-        bodyText = bodyFallback.trim();
-      }
-
-    }catch(e){
-      console.warn("emailjs-mime-parser 파싱 실패, fallback 사용:", e);
-      bodyText = bodyFallback.trim();
+      bodyText = chosenBody;
     }
+
+    // 4) 최종적으로 텍스트 정리 (boundary/헤더라인 제거 + 공백 정리)
+    bodyText = cleanupPlainText(bodyText);
 
     const preview = makePreview(bodyText);
     const threadKey = normalizeSubject(subject);
