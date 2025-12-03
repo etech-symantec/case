@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>3333Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -255,65 +255,76 @@
   function cleanupPlainText(body){
     if(!body) return "";
   
-    let out = body.replace(/\r\n/g,"\n");
+    let out = body.replace(/\r\n/g, "\n");
   
     // soft-break (= + newline)
-    out = out.replace(/=\n/g,"");
+    out = out.replace(/=\n/g, "");
   
     // decode =XX
-    out = out.replace(/=([0-9A-Fa-f]{2})/g,(m,hex)=>{
-      try{ return String.fromCharCode(parseInt(hex,16)); }
+    out = out.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
+      try { return String.fromCharCode(parseInt(hex,16)); }
       catch(e){ return m; }
     });
   
     const lines = out.split("\n");
     const cleaned = [];
   
-    for(let i=0;i<lines.length;i++){
+    for(let i=0; i<lines.length; i++){
       const t = lines[i].trim();
   
-      // ---------------------------
-      // ① 강력 boundary 제거
-      // ---------------------------
+      // -------------------------------------------
+      // ① 강력 MIME boundary 제거
+      // -------------------------------------------
       if (/^[-_+=]+[_A-Za-z0-9+=\/\.\-]{5,}$/i.test(t)) continue;
-      if (/^[-_]+=.*NextPart/i.test(t)) continue;
+      if (/^[-_]+=.*nextpart/i.test(t)) continue;
   
-      // ---------------------------
-      // ② multipart 안내문 제거
-      // ---------------------------
+      // -------------------------------------------
+      // ② boundary="..." 속성 제거
+      // -------------------------------------------
+      if (/^boundary\s*=\s*["'][^"']+["']$/i.test(t)) continue;
+      if (/^boundary\s*=\s*[^"'\s]+$/i.test(t)) continue;
+  
+      // -------------------------------------------
+      // ③ charset="utf-8" 속성 제거
+      // -------------------------------------------
+      if (/^charset\s*=\s*["'][^"']+["']$/i.test(t)) continue;
+      if (/^charset\s*=\s*[^\s]+$/i.test(t)) continue;
+  
+      // -------------------------------------------
+      // ④ multipart 안내문 제거
+      // -------------------------------------------
       if (/multipart message in mime format/i.test(t)) continue;
   
-      // ---------------------------
-      // ③ Content-* 헤더 제거
-      // ---------------------------
-      if(/^content-(type|transfer-encoding|id|disposition)/i.test(t)) continue;
+      // -------------------------------------------
+      // ⑤ Content-* 헤더 제거
+      // -------------------------------------------
+      if (/^content-(type|transfer-encoding|id|disposition)/i.test(t)) continue;
   
-      // ④ MIME-Version 제거
-      if(/^mime-version:/i.test(t)) continue;
+      // ⑥ MIME-Version 제거
+      if (/^mime-version:/i.test(t)) continue;
   
-      // ⑤ 외부메일 경고 배너 제거
-      if(/NOTE: This email was received from an external source/i.test(t)) continue;
+      // ⑦ 외부 메일 배너 제거
+      if (/NOTE: This email was received from an external source/i.test(t)) continue;
   
-      // ---------------------------
-      // ⑥ 과거 이메일(reply) 구분선부터 삭제
-      // ---------------------------
-      if(/^[-_]{4,}\s*Original Message/i.test(t)) break;
-      if(/^From:\s/i.test(t)) break;
-      if(/^Sent:\s/i.test(t)) break;
-      if(/^Subject:\s/i.test(t)) break;
-      if(/^On .* wrote:$/i.test(t)) break;
-      if(/^________________________________/i.test(t)) break;
+      // -------------------------------------------
+      // ⑧ 이전 메일 Reply 구분선에서 이후 전부 제거
+      // -------------------------------------------
+      if (/^[-_]{4,}\s*Original Message/i.test(t)) break;
+      if (/^(From|To|Sent|Subject):\s/i.test(t)) break;
+      if (/^On .* wrote:$/i.test(t)) break;
+      if (/^________________________________/i.test(t)) break;
   
       cleaned.push(lines[i]);
     }
   
     out = cleaned.join("\n");
   
-    // 여백 정리
-    out = out.replace(/\n{3,}/g,"\n\n");
+    // 연속 빈 줄 정리
+    out = out.replace(/\n{3,}/g, "\n\n");
   
     return out.trim();
   }
+
 
 
   /* ----------------------------------------
