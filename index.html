@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>666666666666666Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -342,6 +342,13 @@
   function cleanupBody(body){
     if(!body) return "";
 
+    // Outlook 특유 boundary 패턴 제거
+    if (/^=+Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
+    if (/^---=Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
+    if (/^[-_]{3,}=Part/i.test(t)) continue;
+    if (/^\s*This is a multi-part message in MIME format/i.test(t)) continue;
+
+
     let out = body.replace(/\r\n/g,"\n");
     const lines = out.split("\n");
     const cleaned = [];
@@ -372,6 +379,19 @@
 
     out = cleaned.join("\n");
 
+    // -------------------------------------------
+    // 🔥 quoted-printable 잔여물 (=20, =09, soft wrap) 제거
+    // -------------------------------------------
+    
+    // soft line break (= + newline)
+    out = out.replace(/=\r?\n/g, "");
+    
+    // =20, =09 등의 QP escape 디코딩
+    out = out.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
+      try { return String.fromCharCode(parseInt(hex, 16)); }
+      catch { return m; }
+    });
+    
     // 빈 줄 정리
     out = out.replace(/\n{3,}/g,"\n\n");
     return out.trim();
