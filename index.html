@@ -3,7 +3,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>7777888999Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>6667777888999Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -487,14 +487,21 @@
       encoding = (encoding || "").toLowerCase().trim();
     
       // -------------------------
-      // 1) BASE64 → 디코딩
+      // 1) BASE64 (정식)
       // -------------------------
       if (encoding === "base64") {
         try {
-          const cleaned = body.replace(/\s+/g, "");
-          let decoded = atob(cleaned);
+          let decoded = atob(body.replace(/\s+/g, ""));
     
-          // base64 디코딩 후에도 =XX 형태가 남아있는지 검사
+          // base64 를 풀었는데 결과가 또 base64 인 경우 → 재디코딩
+          if (/^[A-Za-z0-9+\/=]+$/.test(decoded) && decoded.length > 20) {
+            try {
+              let decoded2 = atob(decoded.replace(/\s+/g, ""));
+              return decoded2;
+            } catch {}
+          }
+    
+          // Base64 → QP(=XX) 패턴 있으면 QP 재해제
           if (/=([0-9A-F]{2})/i.test(decoded)) {
             decoded = decoded
               .replace(/=\r?\n/g, "")
@@ -505,7 +512,6 @@
     
           return decoded;
         } catch (e) {
-          console.warn("Base64 decode failed:", e);
           return body;
         }
       }
@@ -521,36 +527,25 @@
               String.fromCharCode(parseInt(hex, 16))
             );
         } catch (e) {
-          console.warn("QP decode failed:", e);
           return body;
         }
       }
     
       // -------------------------
-      // 3) fallback: base64 + QP 이중 인코딩 자동 감지
+      // 3) 자동 감지 (fallback)
       // -------------------------
       const trimmed = body.trim();
     
-      // base64 문자열 자동 인식
-      const looksBase64 =
-        /^[A-Za-z0-9+\/=\r\n]+$/.test(trimmed) &&
-        trimmed.length > 40 &&
-        !trimmed.includes(" ");
-    
-      if (looksBase64) {
+      // base64 자동 감지 → 이중 Base64 자동 처리
+      if (/^[A-Za-z0-9+\/=]+$/.test(trimmed) && trimmed.length > 20) {
         try {
-          let decoded = atob(trimmed.replace(/\s+/g, ""));
-    
-          // base64 해제 후 QP 문자 남아있는지 체크
-          if (/=([0-9A-F]{2})/i.test(decoded)) {
-            decoded = decoded
-              .replace(/=\r?\n/g, "")
-              .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-                String.fromCharCode(parseInt(hex, 16))
-              );
+          let d1 = atob(trimmed.replace(/\s+/g, ""));
+          if (/^[A-Za-z0-9+\/=]+$/.test(d1) && d1.length > 20) {
+            try {
+              return atob(d1.replace(/\s+/g, ""));
+            } catch {}
           }
-    
-          return decoded;
+          return d1;
         } catch {}
       }
     
