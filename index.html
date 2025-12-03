@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>1111Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -148,6 +148,16 @@
 <!-- 메인 로직 -->
 <script type="module">
   import parseMime from "https://esm.run/emailjs-mime-parser@2.0.6";
+  import MimeParser from "https://esm.run/emailjs-mime-parser@2.0.6";
+
+  function parseMime(raw) {
+    const parser = new MimeParser();
+    parser.write(raw);
+    parser.end();
+    return parser.node;
+  }
+
+
 
   /* --------------------------
      GitHub 저장소 설정
