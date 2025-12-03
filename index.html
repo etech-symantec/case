@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>3444444433ㅋㅋ333ㅋOutlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -775,14 +775,15 @@ function parseEml(raw, filename){
     handleFiles([...e.dataTransfer.files]);
   };
 
-  // 초기 토큰 로딩
+    // 초기 토큰 로딩
   (function(){
     const t=localStorage.getItem("github_token");
     if(t){
       github.token=t;
       document.getElementById("ghToken").value=t;
     }
-  }
+  })();   // ← 반드시 있어야 함!
+
   // ----------------------------------------
   // 주소 배열을 사람이 읽을 수 있는 문자열로 변환
   // ----------------------------------------
@@ -795,9 +796,8 @@ function parseEml(raw, filename){
       })
       .join(", ");
   }
-  
-  )();
 </script>
+
 
 </body>
 </html>
