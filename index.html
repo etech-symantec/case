@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>6563546ㅇㄹㄷ6Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -285,47 +285,42 @@
   
     let out = body;
   
-    // 모든 CRLF → LF
-    out = out.replace(/\r\n/g,"\n");
+    // =XX (quoted-printable soft wrap 제거)
+    out = out.replace(/=\r?\n/g, "");
   
     // MIME boundary 제거
     out = out.replace(/^--[A-Za-z0-9\/+_=.-]+$/gm, "");
   
     // Content-* 헤더 제거
-    out = out.replace(/^content-(type|transfer-encoding|id|disposition).*\n?/gim, "");
-    out = out.replace(/^mime-version:.*$/gim, "");
+    out = out.replace(/^content-[^\n]+\n?/gim, "");
+    out = out.replace(/^mime-version:[^\n]+/gim, "");
   
-    // Outlook 주석 NOTE 배너 제거
-    out = out.replace(/^-{5,}[\s\S]*?^-{5,}$/gm, ""); 
+    // HTML 태그 제거
+    out = out.replace(/<[^>]+>/g, "");
   
-    // 이미지 링크 제거
-    out = out.replace(/<https?:\/\/[^>]+>/g, "");
+    // Outlook NOTE 배너 제거
+    out = out.replace(/^-{5,}[\s\S]*?^-{5,}$/gm, "");
   
-    // 이모지/이미지 Alt 텍스트 제거
-    out = out.replace(/\[[^\]]+\.(jpg|png|gif)\]/gi, "");
+    // ===== 이전 메일 스레드 제거 =====
+    out = out.split(/[\r\n]+From:/i)[0];
+    out = out.split(/[\r\n]+-----Original Message-----/i)[0];
+    out = out.split(/[\r\n]+보낸 사람:/i)[0];
+    out = out.split(/[\r\n]+보낸:\s/i)[0];
+    out = out.split(/[\r\n]+Sent:/i)[0];
   
-    // ---------------------------
-    // 📌 여기서 “이전 메일 스레드 제거” 적용
-    // ---------------------------
-    out = out.split(/[\n\r]+From:/i)[0];
-    out = out.split(/[\n\r]+-----Original Message-----/i)[0];
-    out = out.split(/[\n\r]+보낸 사람:/i)[0];
-    out = out.split(/[\n\r]+보낸:\s/i)[0];
-  
-    // HTML escape 일부 제거
+    // HTML 엔티티 정리
     out = out.replace(/&nbsp;/gi," ");
     out = out.replace(/&lt;/gi,"<");
     out = out.replace(/&gt;/gi,">");
     out = out.replace(/&amp;/gi,"&");
   
-    // 쓸데없는 전각 공백 제거
-    out = out.replace(/\u00A0/g," ");
-  
-    // 연속 공백 줄 정리
+    // 반복 공백 정리
     out = out.replace(/\n{3,}/g,"\n\n");
   
+    // 앞뒤 공백 제거
     return out.trim();
   }
+
 
 
   /* ----------------------------------------
@@ -493,9 +488,16 @@ function parseEml(raw, filename){
 
     // text/plain 찾기
     const tnode = extractTextPlain(root);
-    if(tnode) bodyText = tnode.trim();
-
-    if(!bodyText) bodyText = bodyFallback.trim();
+    if(tnode){
+      bodyText = decodeMimeBuffer(tnode);
+    }
+  
+    // 📌 여기!!
+    bodyText = cleanupPlainText(bodyText);
+  
+    if(!bodyText){
+      bodyText = cleanupPlainText(bodyFallback);
+    }
 
   }catch(e){
     console.warn("emailjs-mime-parser 실패 → fallback 사용:", e);
