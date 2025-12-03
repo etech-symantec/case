@@ -314,69 +314,79 @@
   /* --------------------------
      MIME 본문 디코딩 (Content-Transfer-Encoding 반영)
   -------------------------- */
-  function decodeText(node){
-    if(!node || node.content == null) return "";
-
-    // 1) raw string 추출
-    let raw = "";
-    if(typeof node.content === "string"){
-      raw = node.content;
-    }else if(node.content instanceof Uint8Array){
-      // base64/qp 헤더는 ASCII로 표현되므로 일단 ascii로 읽음
-      raw = new TextDecoder("ascii").decode(node.content);
-    }else{
-      return "";
-    }
-
-    // 2) transfer-encoding 헤더 추출
-    let encHeader = "";
-    if(typeof node.contentTransferEncoding === "string"){
-      encHeader = node.contentTransferEncoding.toLowerCase();
-    }else if(node.headers && node.headers["content-transfer-encoding"]){
-      const v = node.headers["content-transfer-encoding"];
-      if(Array.isArray(v)){
-        const first = v[0];
-        if(typeof first === "string") encHeader = first.toLowerCase();
-        else if(first && typeof first.value === "string") encHeader = first.value.toLowerCase();
-      }else if(typeof v === "string"){
-        encHeader = v.toLowerCase();
-      }
-    }
-
-    // 3) charset 추출
+  function decodeText(node) {
+    if (!node || node.content == null) return "";
+  
+    // 1) charset 추출
     let charset =
       (node.charset ||
-       (node.contentType && node.contentType.params && node.contentType.params.charset) ||
-       "utf-8"
+        (node.contentType &&
+          node.contentType.params &&
+          node.contentType.params.charset) ||
+        "utf-8"
       ).toLowerCase();
-
-    if(charset.includes("ks_c_5601") || charset.includes("ks-c-5601")){
+  
+    if (charset.includes("ks_c_5601") || charset.includes("ks-c-5601")) {
       charset = "euc-kr";
     }
-
-    // 4) base64 우선 디코딩
-    if(encHeader.includes("base64") || looksLikeBase64(raw)){
-      try{
-        const cleaned = raw.replace(/\s+/g,"");
-        const bin = atob(cleaned);
-        const bytes = Uint8Array.from([...bin].map(c=>c.charCodeAt(0)));
-        return new TextDecoder(charset).decode(bytes);
-      }catch(e){
-        console.warn("decodeText base64 디코딩 실패:", e);
-        // 실패 시 raw 그대로 리턴하고 아래 로직으로 넘어감
+  
+    // 2) transfer-encoding 헤더
+    let encHeader = "";
+    if (typeof node.contentTransferEncoding === "string") {
+      encHeader = node.contentTransferEncoding.toLowerCase();
+    } else if (node.headers && node.headers["content-transfer-encoding"]) {
+      const v = node.headers["content-transfer-encoding"];
+      if (typeof v === "string") encHeader = v.toLowerCase();
+      else if (Array.isArray(v) && typeof v[0] === "string")
+        encHeader = v[0].toLowerCase();
+      else if (Array.isArray(v) && v[0]?.value)
+        encHeader = v[0].value.toLowerCase();
+    }
+  
+    // 3) 이미 디코딩된 바이너리(Uint8Array)인 경우
+    //    → base64 재해석하면 안됨!
+    if (node.content instanceof Uint8Array) {
+      try {
+        return new TextDecoder(charset).decode(node.content);
+      } catch (err) {
+        console.warn("binary decode fail:", err);
+        return new TextDecoder("utf-8").decode(node.content);
       }
     }
-
-    // 5) quoted-printable
-    if(encHeader.includes("quoted-printable")){
-      let qp = raw.replace(/=\r?\n/g,"");
-      qp = qp.replace(/=([0-9A-Fa-f]{2})/g,(m,hex)=>String.fromCharCode(parseInt(hex,16)));
+  
+    // 4) 문자열인 경우 raw 추출
+    let raw = "";
+    if (typeof node.content === "string") raw = node.content;
+    else return "";
+  
+    // 5) 문자열이 base64 형태이거나 헤더가 base64이면 base64 디코딩
+    const isB64 = encHeader.includes("base64") || looksLikeBase64(raw);
+  
+    if (isB64) {
+      try {
+        const cleaned = raw.replace(/\s+/g, "");
+        const bin = atob(cleaned);
+        const bytes = Uint8Array.from([...bin].map((c) => c.charCodeAt(0)));
+        return new TextDecoder(charset).decode(bytes);
+      } catch (err) {
+        console.warn("string base64 decode fail:", err);
+        // 실패 시 그대로 raw 반환 (아래 qp 처리 진행)
+      }
+    }
+  
+    // 6) quoted-printable
+    if (encHeader.includes("quoted-printable")) {
+      let qp = raw.replace(/=\r?\n/g, "");
+      qp = qp.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) =>
+        String.fromCharCode(parseInt(hex, 16))
+      );
       return qp;
     }
-
-    // 6) 별도 인코딩 정보가 없으면 raw 그대로 사용
+  
+    // 7) 그 외는 raw 그대로
     return raw;
   }
+
 
   /* --------------------------
      text/plain 재귀 수집
