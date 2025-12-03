@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>ㅋㅋㅋOutlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -307,22 +307,19 @@
   ====================================================== */
   function parseEml(raw, filename){
   
-    /* ------------------------------
-       0) Header / Body fallback 분리
-    ------------------------------ */
+    /* --------------------------------------------------
+       0) Header / Fallback
+    -------------------------------------------------- */
     const parts = raw.split(/\r?\n\r?\n/);
-    let headerText    = parts[0] || "";
-    let bodyFallback  = parts.slice(1).join("\n\n") || "";
-  
-    headerText = headerText.replace(/(\r?\n)(\t| )+/g, " "); // folding fix
+    let headerText   = parts[0] || "";
+    let bodyFallback = parts.slice(1).join("\n\n") || "";
   
     function getHeader(name){
-      const re=new RegExp("^"+name+"\\s*:\\s*(.+)$","im");
-      const m=headerText.match(re);
+      const re = new RegExp("^"+name+"\\s*:\\s*(.+)$", "im");
+      const m  = headerText.match(re);
       return m ? m[1].trim() : "";
     }
   
-    /* 기본 헤더값 */
     let subject = getHeader("Subject") || "(제목 없음)";
     let from    = getHeader("From")    || "";
     let to      = getHeader("To")      || "";
@@ -330,23 +327,58 @@
     let dateStr = getHeader("Date");
     let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
   
-    /* ------------------------------
-       1) Reply chain 제거 함수
-    ------------------------------ */
-    function stripReply(text){
-      if(!text) return text;
+    /* --------------------------------------------------
+       QP(quoted-printable) 디코딩
+    -------------------------------------------------- */
+    function decodeQP(str){
+      if(!str) return "";
+      return str
+        .replace(/=\r?\n/g, "")          // soft line break
+        .replace(/=([A-Fa-f0-9]{2})/g, (m,hex)=>String.fromCharCode(parseInt(hex,16)));
+    }
   
-      const patterns = [
+    /* --------------------------------------------------
+       HTML → TEXT 변환 (fallback)
+    -------------------------------------------------- */
+    function htmlToText(html){
+      if(!html) return "";
+      html = html.replace(/<style[\s\S]*?<\/style>/gi, "");
+      html = html.replace(/<script[\s\S]*?<\/script>/gi, "");
+      html = html.replace(/<br\s*\/?>/gi, "\n");
+      html = html.replace(/<\/p>/gi, "\n");
+      html = html.replace(/<[^>]+>/g, "");
+      return html;
+    }
+  
+    /* --------------------------------------------------
+       Word HTML 정크 제거
+    -------------------------------------------------- */
+    function cleanGarbage(s){
+      if(!s) return s;
+  
+      return s
+        .replace(/<meta[^>]+>/gi,"")
+        .replace(/charset="?ks_c_5601[^"]*"?/gi,"")
+        .replace(/<html[\s\S]*?<\/html>/gi,"")
+        .trim();
+    }
+  
+    /* --------------------------------------------------
+       Reply chain 제거
+    -------------------------------------------------- */
+    function stripReply(s){
+      if(!s) return s;
+  
+      const patterns=[
         /^-----Original Message-----/i,
         /^On .+ wrote:$/i,
         /^보낸 사람:/i,
         /^받는 사람:/i,
         /^참조:/i,
         /^발신:/i,
-        /^기존 메시지:/i
       ];
   
-      const lines = text.split(/\r?\n/);
+      const lines=s.split(/\r?\n/);
       let out=[];
       for(const line of lines){
         if(patterns.some(p=>p.test(line))) break;
@@ -355,73 +387,62 @@
       return out.join("\n").trim();
     }
   
-    /* ------------------------------
-       2) HTML/Word 정크 제거
-    ------------------------------ */
-    function stripWordHtml(body){
-      if(!body) return body;
-  
-      // 전체 Word HTML 태그 제거
-      body = body.replace(/<html[\s\S]*?<\/html>/gi, "");
-  
-      // meta charset 제거
-      body = body.replace(/charset="?ks_c_5601-1987"?/gi, "");
-      body = body.replace(/<meta[^>]+>/gi, "");
-  
-      return body.trim();
-    }
-  
-    /* ------------------------------
-       3) emailjs-mime-parser 파싱
-    ------------------------------ */
+    /* --------------------------------------------------
+       emailjs-mime-parser 파싱
+    -------------------------------------------------- */
     let extractedBody = "";
   
     try{
       const root = parseMime(raw);
   
-      function findTextPart(node){
-        if(!node) return null;
-        const ct = node.contentType||{};
-        const type = (ct.type||"").toLowerCase();
-        const sub  = (ct.subtype||"").toLowerCase();
+      // 🔥 text/plain, text/html 모두 재귀 탐색
+      function collectParts(node, bucket){
+        if(!node) return;
+        const ct=node.contentType||{};
+        const type=(ct.type||"").toLowerCase();
+        const sub =(ct.subtype||"").toLowerCase();
   
-        if(type==="text" && sub==="plain") return node;
-  
-        if(node.childNodes){
-          for(const ch of node.childNodes){
-            const r=findTextPart(ch);
-            if(r) return r;
-          }
+        if(type==="text"){
+          bucket.push({ node, type, sub });
         }
-        return null;
+        if(node.childNodes){
+          for(const ch of node.childNodes) collectParts(ch, bucket);
+        }
       }
   
-      const textNode = findTextPart(root);
+      let partsList=[];
+      collectParts(root, partsList);
   
-      function decode(node){
-        if(!node || node.content==null) return "";
-        if(typeof node.content==="string") return node.content;
+      // 1) 우선순위: text/plain
+      let textPlain = partsList.find(p => p.sub==="plain");
+      let textHtml  = partsList.find(p => p.sub==="html");
   
+      function decodePart(p){
+        const node=p.node;
         if(node.content instanceof Uint8Array){
-          const charset = node.charset || "utf-8";
+          let charset=node.charset || "utf-8";
           try{
             return new TextDecoder(charset).decode(node.content);
           }catch(e){
             return new TextDecoder("utf-8").decode(node.content);
           }
         }
+        if(typeof node.content==="string") return node.content;
         return "";
       }
   
-      if(textNode){
-        extractedBody = decode(textNode).trim();
+      if(textPlain){
+        extractedBody = decodeQP(decodePart(textPlain)).trim();
+      }
+      else if(textHtml){
+        extractedBody = htmlToText(decodePart(textHtml)).trim();
       }
   
-      // MIME 헤더 보정 (emailjs 구조 적용)
+      // MIME 헤더 보정
       if(root.headers){
-        const h = root.headers;
-        const pick = key => {
-          const v = h[key];
+        const h=root.headers;
+        const pick=(k)=>{
+          const v=h[k];
           if(!v) return "";
           if(Array.isArray(v)){
             if(typeof v[0]==="string") return v[0];
@@ -429,41 +450,38 @@
           }
           return "";
         };
-  
         subject = pick("subject") || subject;
         from    = pick("from")    || from;
         to      = pick("to")      || to;
-  
-        const d2 = pick("date");
+        let d2  = pick("date");
         if(d2){
-          const tmp=new Date(d2);
-          if(!isNaN(tmp)){
+          let t=new Date(d2);
+          if(!isNaN(t)){
             dateStr=d2;
-            dateObj=tmp;
+            dateObj=t;
           }
         }
       }
   
     }catch(e){
-      console.warn("MIME 파싱 실패. fallback 사용:", e);
-      extractedBody = bodyFallback.trim();
+      console.warn("MIME 파싱 실패 → fallback body:", e);
+      extractedBody = decodeQP(bodyFallback).trim();
     }
   
-    /* ------------------------------
+    /* --------------------------------------------------
        4) 본문 최종 처리
-    ------------------------------ */
-    let finalBody = extractedBody || bodyFallback;
+    -------------------------------------------------- */
+    let finalBody = extractedBody || decodeQP(bodyFallback);
   
-    finalBody = stripWordHtml(finalBody);
+    finalBody = cleanGarbage(finalBody);
     finalBody = stripReply(finalBody);
   
-    const preview = makePreview(finalBody);
+    const preview   = makePreview(finalBody);
     const threadKey = normalizeSubject(subject);
   
     return {
       sourceType:"eml",
       filename: filename || "",
-      // 📌 개별 카드에서 제목을 제거하기 위해 subject는 thread grouping만 사용
       subject,
       from,
       to,
@@ -474,6 +492,7 @@
       threadKey
     };
   }
+
 
   /* --------------------------
      파일 처리 + 드래그드랍
