@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>333ㅋㅋ333ㅋOutlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>3444444433ㅋㅋ333ㅋOutlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -642,9 +642,10 @@ function parseEml(raw, filename){
       d.innerHTML=`
         <div class="mail-header">
           <div class="mail-meta">
-            From: ${esc(m.from)}<br>
-            To: ${esc(m.to)}
+            From: ${esc(renderAddressList(m.from))}<br>
+            To: ${esc(renderAddressList(m.to))}
           </div>
+
           <div class="mail-date">${esc(fmtDate(m.dateObj))}</div>
         </div>
   
@@ -781,7 +782,21 @@ function parseEml(raw, filename){
       github.token=t;
       document.getElementById("ghToken").value=t;
     }
-  })();
+  }
+  // ----------------------------------------
+  // 주소 배열을 사람이 읽을 수 있는 문자열로 변환
+  // ----------------------------------------
+  function renderAddressList(list){
+    if(!list || !list.length) return "";
+    return list
+      .map(x=>{
+        if(x.name) return `${x.name} <${x.email}>`;
+        return x.email;
+      })
+      .join(", ");
+  }
+  
+  )();
 </script>
 
 </body>
