@@ -3,7 +3,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>888999Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>7777888999Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -483,21 +483,36 @@
     ----------------------------------------------------------- */
     function decodePartBody(body, encoding) {
       if (!body) return "";
-  
+    
       encoding = (encoding || "").toLowerCase().trim();
-  
-      // Base64
+    
+      // -------------------------
+      // 1) BASE64 → 디코딩
+      // -------------------------
       if (encoding === "base64") {
         try {
           const cleaned = body.replace(/\s+/g, "");
-          return atob(cleaned);
+          let decoded = atob(cleaned);
+    
+          // base64 디코딩 후에도 =XX 형태가 남아있는지 검사
+          if (/=([0-9A-F]{2})/i.test(decoded)) {
+            decoded = decoded
+              .replace(/=\r?\n/g, "")
+              .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
+                String.fromCharCode(parseInt(hex, 16))
+              );
+          }
+    
+          return decoded;
         } catch (e) {
           console.warn("Base64 decode failed:", e);
           return body;
         }
       }
-  
-      // quoted-printable
+    
+      // -------------------------
+      // 2) QUOTED-PRINTABLE
+      // -------------------------
       if (encoding === "quoted-printable") {
         try {
           return body
@@ -510,9 +525,38 @@
           return body;
         }
       }
-  
+    
+      // -------------------------
+      // 3) fallback: base64 + QP 이중 인코딩 자동 감지
+      // -------------------------
+      const trimmed = body.trim();
+    
+      // base64 문자열 자동 인식
+      const looksBase64 =
+        /^[A-Za-z0-9+\/=\r\n]+$/.test(trimmed) &&
+        trimmed.length > 40 &&
+        !trimmed.includes(" ");
+    
+      if (looksBase64) {
+        try {
+          let decoded = atob(trimmed.replace(/\s+/g, ""));
+    
+          // base64 해제 후 QP 문자 남아있는지 체크
+          if (/=([0-9A-F]{2})/i.test(decoded)) {
+            decoded = decoded
+              .replace(/=\r?\n/g, "")
+              .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
+                String.fromCharCode(parseInt(hex, 16))
+              );
+          }
+    
+          return decoded;
+        } catch {}
+      }
+    
       return body;
     }
+
   
     /* ----------------------------------------------------------
        emailjs-mime-parser 활용
