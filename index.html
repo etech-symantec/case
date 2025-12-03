@@ -3,7 +3,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>888999Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -452,89 +452,215 @@
     }
   }
 
-  /* --------------------------
-     EML 파서 (핵심)
-  -------------------------- */
-  function parseEml(raw, filename){
+  /* ----------------------------------------------------------
+     최종 완전체 parseEml() — base64 / QP 본문 완벽 처리
+  ----------------------------------------------------------- */
+  function parseEml(raw, filename) {
     const parts = raw.split(/\r?\n\r?\n/);
     let headerText = parts[0] || "";
     let bodyFallback = parts.slice(1).join("\n\n") || "";
-
-    headerText = headerText.replace(/(\r?\n)(\t| )+/g," ");
-
-    function getHeader(name){
-      const re = new RegExp("^"+name+"\\s*:\\s*(.+)$","im");
+  
+    headerText = headerText.replace(/(\r?\n)(\t| )+/g, " ");
+  
+    function getHeader(name) {
+      const re = new RegExp("^" + name + "\\s*:\\s*(.+)$", "im");
       const m = headerText.match(re);
-      return m?m[1].trim():"";
+      return m ? m[1].trim() : "";
     }
-
+  
     let subject = decodeMimeWord(getHeader("Subject") || "(제목 없음)");
     let fromRaw = getHeader("From");
-    let toRaw   = getHeader("To");
-    let ccRaw   = getHeader("Cc");
+    let toRaw = getHeader("To");
+    let ccRaw = getHeader("Cc");
     let dateStr = getHeader("Date");
     let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
-
+  
     let bodyText = "";
-
-    try{
+    let htmlText = "";
+  
+    /* ----------------------------------------------------------
+       Base64 / QP 디코더
+    ----------------------------------------------------------- */
+    function decodePartBody(body, encoding) {
+      if (!body) return "";
+  
+      encoding = (encoding || "").toLowerCase().trim();
+  
+      // Base64
+      if (encoding === "base64") {
+        try {
+          const cleaned = body.replace(/\s+/g, "");
+          return atob(cleaned);
+        } catch (e) {
+          console.warn("Base64 decode failed:", e);
+          return body;
+        }
+      }
+  
+      // quoted-printable
+      if (encoding === "quoted-printable") {
+        try {
+          return body
+            .replace(/=\r?\n/g, "")
+            .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
+              String.fromCharCode(parseInt(hex, 16))
+            );
+        } catch (e) {
+          console.warn("QP decode failed:", e);
+          return body;
+        }
+      }
+  
+      return body;
+    }
+  
+    /* ----------------------------------------------------------
+       emailjs-mime-parser 활용
+    ----------------------------------------------------------- */
+    try {
       const root = parseMime(raw);
-
+  
       const h = root.headers || {};
-      const pick = key=>{
+      const pick = (key) => {
         const v = h[key];
-        if(!v) return "";
-        if(Array.isArray(v)){
-          if(typeof v[0]==="string") return v[0];
-          if(typeof v[0].value==="string") return v[0].value;
+        if (!v) return "";
+        if (Array.isArray(v)) {
+          if (typeof v[0] === "string") return v[0];
+          if (typeof v[0].value === "string") return v[0].value;
         }
         return "";
       };
-
+  
       const sj = pick("subject");
       const fr = pick("from");
       const tr = pick("to");
       const cr = pick("cc");
       const dr = pick("date");
-
-      if(sj) subject = decodeMimeWord(sj);
-      if(fr) fromRaw = fr;
-      if(tr) toRaw   = tr;
-      if(cr) ccRaw   = cr;
-      if(dr){
+  
+      if (sj) subject = decodeMimeWord(sj);
+      if (fr) fromRaw = fr;
+      if (tr) toRaw = tr;
+      if (cr) ccRaw = cr;
+      if (dr) {
         const d2 = new Date(dr);
-        if(!isNaN(d2)) dateObj = d2;
+        if (!isNaN(d2)) dateObj = d2;
       }
-
-      const plains = [];
-      collectTextPlain(root, plains);
-
-      if(plains.length){
-        plains.sort((a,b)=>b.length - a.length);
-        bodyText = plains[0];
-      }else{
-        bodyText = bodyFallback;
+  
+      /* ----------------------------------------------------------
+         text/plain / text/html 파트 모두 수집
+      ----------------------------------------------------------- */
+      function collectParts(node) {
+        if (!node) return;
+  
+        const ct = node.contentType || {};
+        const type = (ct.type || "").toLowerCase();
+        const sub = (ct.subtype || "").toLowerCase();
+  
+        const encodingHeader =
+          (node.headers && node.headers["content-transfer-encoding"]) || "";
+  
+        // Plain text
+        if (type === "text" && sub === "plain") {
+          let content = decodeText(node);
+          content = decodePartBody(content, encodingHeader);
+          if (content.trim().length > 0) {
+            if (content.length > (bodyText?.length || 0)) {
+              bodyText = content;
+            }
+          }
+        }
+  
+        // HTML text
+        if (type === "text" && sub === "html") {
+          let content = decodeText(node);
+          content = decodePartBody(content, encodingHeader);
+          if (content.trim().length > 0) {
+            if (content.length > (htmlText?.length || 0)) {
+              htmlText = content;
+            }
+          }
+        }
+  
+        // Child nodes
+        if (node.childNodes) {
+          for (const c of node.childNodes) collectParts(c);
+        }
       }
-
-    }catch(e){
+  
+      collectParts(root);
+  
+    } catch (e) {
       console.warn("emailjs-mime-parser 실패 → fallback 본문 사용:", e);
       bodyText = bodyFallback;
     }
-
-    bodyText = tryDecodeBase64(bodyText);
+  
+    /* ----------------------------------------------------------
+       fallback base64 / QP 자동 감지 (본문만 있을 때)
+    ----------------------------------------------------------- */
+    function fallbackDecode(text) {
+      if (!text) return text;
+  
+      // Base64 자동 감지
+      const trimmed = text.trim();
+      const isBase64 =
+        /^[A-Za-z0-9+\/=\r\n]+$/.test(trimmed) &&
+        trimmed.length > 50 &&
+        !trimmed.includes(" ");
+  
+      if (isBase64) {
+        try {
+          return atob(trimmed.replace(/\s+/g, ""));
+        } catch {}
+      }
+  
+      // quoted-printable 자동 감지
+      if (/=[0-9A-F]{2}/i.test(trimmed)) {
+        try {
+          return trimmed.replace(/=\r?\n/g, "")
+            .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
+              String.fromCharCode(parseInt(hex, 16))
+            );
+        } catch {}
+      }
+  
+      return text;
+    }
+  
+    if (!bodyText && bodyFallback) {
+      bodyText = fallbackDecode(bodyFallback);
+    }
+  
+    /* ----------------------------------------------------------
+       HTML 본문은 텍스트로 변환
+    ----------------------------------------------------------- */
+    if (htmlText && (!bodyText || htmlText.length > bodyText.length)) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlText, "text/html");
+        let t = doc.body ? doc.body.textContent || "" : "";
+        t = t.replace(/\r\n/g, "\n");
+        t = t.replace(/[ \t]+\n/g, "\n");
+        t = t.replace(/\n{3,}/g, "\n\n");
+        bodyText = t.trim();
+      } catch {}
+    }
+  
+    /* ----------------------------------------------------------
+       최종 cleanup
+    ----------------------------------------------------------- */
     bodyText = cleanupBody(bodyText);
-
+  
     const fromList = parseAddressList(fromRaw);
-    const toList   = parseAddressList(toRaw);
-    const ccList   = parseAddressList(ccRaw);
-
+    const toList = parseAddressList(toRaw);
+    const ccList = parseAddressList(ccRaw);
+  
     return {
-      sourceType:"eml",
+      sourceType: "eml",
       filename,
       subject,
       from: fromList,
-      to:   toList,
-      cc:   ccList,
+      to: toList,
+      cc: ccList,
       body: bodyText,
       dateStr,
       dateObj,
@@ -542,6 +668,7 @@
       threadKey: normalizeSubject(subject)
     };
   }
+
 
   /* --------------------------
      케이스 데이터 구조
