@@ -254,59 +254,67 @@
   -------------------------- */
   function cleanupPlainText(body){
     if(!body) return "";
-
-    // CRLF → LF
+  
     let out = body.replace(/\r\n/g,"\n");
-
-    // ① Quoted-printable soft break (= + LF) 먼저 제거해서 줄 이어 붙이기
+  
+    // soft-break (= + newline)
     out = out.replace(/=\n/g,"");
-
-    // ② Quoted-printable =XX 디코딩
+  
+    // decode =XX
     out = out.replace(/=([0-9A-Fa-f]{2})/g,(m,hex)=>{
-      try{
-        return String.fromCharCode(parseInt(hex,16));
-      }catch(e){
-        return m;
-      }
+      try{ return String.fromCharCode(parseInt(hex,16)); }
+      catch(e){ return m; }
     });
-
-    // ③ 라인 단위 처리
+  
     const lines = out.split("\n");
     const cleaned = [];
+  
     for(let i=0;i<lines.length;i++){
       const t = lines[i].trim();
-
-      // MIME boundary 제거
-      if(/^--?[_A-Za-z0-9\-]+$/i.test(t)) continue;
-
-      // Content-* 헤더 제거
+  
+      // ---------------------------
+      // ① 강력 boundary 제거
+      // ---------------------------
+      if (/^[-_+=]+[_A-Za-z0-9+=\/\.\-]{5,}$/i.test(t)) continue;
+      if (/^[-_]+=.*NextPart/i.test(t)) continue;
+  
+      // ---------------------------
+      // ② multipart 안내문 제거
+      // ---------------------------
+      if (/multipart message in mime format/i.test(t)) continue;
+  
+      // ---------------------------
+      // ③ Content-* 헤더 제거
+      // ---------------------------
       if(/^content-(type|transfer-encoding|id|disposition)/i.test(t)) continue;
-
-      // MIME-Version 제거
+  
+      // ④ MIME-Version 제거
       if(/^mime-version:/i.test(t)) continue;
-
-      // 외부메일 경고 배너 제거
+  
+      // ⑤ 외부메일 경고 배너 제거
       if(/NOTE: This email was received from an external source/i.test(t)) continue;
-
-      // 이전 메일 스레드 시작 지점에서 이후는 모두 버리기
-      if(/^[-_]{4,}\s*Original Message/i.test(t) ||
-         /^From:\s/i.test(t) ||
-         /^On .+wrote:$/i.test(t) ||
-         /^________________________________/i.test(t)
-      ){
-        break; // 여기서부터는 지난 메일 내용으로 판단하고 잘라냄
-      }
-
+  
+      // ---------------------------
+      // ⑥ 과거 이메일(reply) 구분선부터 삭제
+      // ---------------------------
+      if(/^[-_]{4,}\s*Original Message/i.test(t)) break;
+      if(/^From:\s/i.test(t)) break;
+      if(/^Sent:\s/i.test(t)) break;
+      if(/^Subject:\s/i.test(t)) break;
+      if(/^On .* wrote:$/i.test(t)) break;
+      if(/^________________________________/i.test(t)) break;
+  
       cleaned.push(lines[i]);
     }
-
+  
     out = cleaned.join("\n");
-
-    // ④ 연속 빈 줄 정리
+  
+    // 여백 정리
     out = out.replace(/\n{3,}/g,"\n\n");
-
+  
     return out.trim();
   }
+
 
   /* ----------------------------------------
      📌 Encoded-Word 디코더 (RFC 2047)
