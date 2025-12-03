@@ -301,75 +301,79 @@
     return out.trim();
   }
 
-  /* --------------------------
-     안전 개선된 parseEml()
-  -------------------------- */
+  /* ======================================================
+     안전 개선 + 날짜 표시 + Reply 제거 + 개별제목 제거 버전
+     (전체 HTML에 즉시 교체 가능)
+  ====================================================== */
   function parseEml(raw, filename){
   
-    // 1) 헤더 / 바디 분리 (fallback)
+    /* ------------------------------
+       0) Header / Body fallback 분리
+    ------------------------------ */
     const parts = raw.split(/\r?\n\r?\n/);
-    let headerText = parts[0] || "";
-    let bodyFallback = parts.slice(1).join("\n\n") || "";
+    let headerText    = parts[0] || "";
+    let bodyFallback  = parts.slice(1).join("\n\n") || "";
   
-    headerText = headerText.replace(/(\r?\n)(\t| )+/g, " ");
+    headerText = headerText.replace(/(\r?\n)(\t| )+/g, " "); // folding fix
   
     function getHeader(name){
-      const re = new RegExp("^"+name+"\\s*:\\s*(.+)$", "im");
-      const m = headerText.match(re);
+      const re=new RegExp("^"+name+"\\s*:\\s*(.+)$","im");
+      const m=headerText.match(re);
       return m ? m[1].trim() : "";
     }
   
+    /* 기본 헤더값 */
     let subject = getHeader("Subject") || "(제목 없음)";
-    let from    = getHeader("From");
-    let to      = getHeader("To");
+    let from    = getHeader("From")    || "";
+    let to      = getHeader("To")      || "";
+  
     let dateStr = getHeader("Date");
     let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
   
-    /* ============================
-       Reply 본문 정리 함수
-    ============================ */
-    function stripReplyContent(text){
+    /* ------------------------------
+       1) Reply chain 제거 함수
+    ------------------------------ */
+    function stripReply(text){
       if(!text) return text;
   
       const patterns = [
         /^-----Original Message-----/i,
-        /^----- Forwarded by/i,
         /^On .+ wrote:$/i,
         /^보낸 사람:/i,
         /^받는 사람:/i,
         /^참조:/i,
-        /^발신:/i
+        /^발신:/i,
+        /^기존 메시지:/i
       ];
   
       const lines = text.split(/\r?\n/);
-      let out = [];
-  
-      for(let i=0;i<lines.length;i++){
-        if(patterns.some(p => p.test(lines[i]))) break;
-        out.push(lines[i]);
+      let out=[];
+      for(const line of lines){
+        if(patterns.some(p=>p.test(line))) break;
+        out.push(line);
       }
       return out.join("\n").trim();
     }
   
-    /* ============================
-       HTML/Word 정크 제거
-    ============================ */
-    function stripHtmlGarbage(body){
+    /* ------------------------------
+       2) HTML/Word 정크 제거
+    ------------------------------ */
+    function stripWordHtml(body){
       if(!body) return body;
   
-      // Word/Office HTML block 제거
+      // 전체 Word HTML 태그 제거
       body = body.replace(/<html[\s\S]*?<\/html>/gi, "");
   
-      // base64 Word garbage 제거
+      // meta charset 제거
       body = body.replace(/charset="?ks_c_5601-1987"?/gi, "");
       body = body.replace(/<meta[^>]+>/gi, "");
   
       return body.trim();
     }
   
-    /* ============================
-       emailjs-mime-parser 파싱
-    ============================ */
+    /* ------------------------------
+       3) emailjs-mime-parser 파싱
+    ------------------------------ */
     let extractedBody = "";
   
     try{
@@ -385,7 +389,7 @@
   
         if(node.childNodes){
           for(const ch of node.childNodes){
-            const r = findTextPart(ch);
+            const r=findTextPart(ch);
             if(r) return r;
           }
         }
@@ -394,13 +398,14 @@
   
       const textNode = findTextPart(root);
   
-      function decodeContent(node){
+      function decode(node){
         if(!node || node.content==null) return "";
         if(typeof node.content==="string") return node.content;
   
         if(node.content instanceof Uint8Array){
+          const charset = node.charset || "utf-8";
           try{
-            return new TextDecoder(node.charset || "utf-8").decode(node.content);
+            return new TextDecoder(charset).decode(node.content);
           }catch(e){
             return new TextDecoder("utf-8").decode(node.content);
           }
@@ -409,13 +414,12 @@
       }
   
       if(textNode){
-        extractedBody = decodeContent(textNode).trim();
+        extractedBody = decode(textNode).trim();
       }
   
-      // MIME 헤더 보정
+      // MIME 헤더 보정 (emailjs 구조 적용)
       if(root.headers){
         const h = root.headers;
-  
         const pick = key => {
           const v = h[key];
           if(!v) return "";
@@ -429,39 +433,37 @@
         subject = pick("subject") || subject;
         from    = pick("from")    || from;
         to      = pick("to")      || to;
-        const d = pick("date");
-        if(d){
-          dateStr = d;
-          const tmp = new Date(d);
-          if(!isNaN(tmp)) dateObj = tmp;
+  
+        const d2 = pick("date");
+        if(d2){
+          const tmp=new Date(d2);
+          if(!isNaN(tmp)){
+            dateStr=d2;
+            dateObj=tmp;
+          }
         }
       }
   
     }catch(e){
-      console.warn("emailjs-mime-parser 실패, fallback 본문 사용:", e);
+      console.warn("MIME 파싱 실패. fallback 사용:", e);
       extractedBody = bodyFallback.trim();
     }
   
-    /* ============================
-       본문 후처리
-    ============================ */
-  
-    // fallback 적용
+    /* ------------------------------
+       4) 본문 최종 처리
+    ------------------------------ */
     let finalBody = extractedBody || bodyFallback;
   
-    // Word/HTML 정크 제거
-    finalBody = stripHtmlGarbage(finalBody);
+    finalBody = stripWordHtml(finalBody);
+    finalBody = stripReply(finalBody);
   
-    // reply chain 제거
-    finalBody = stripReplyContent(finalBody);
-  
-    // 미리보기 생성
     const preview = makePreview(finalBody);
     const threadKey = normalizeSubject(subject);
   
     return {
-      sourceType: "eml",
+      sourceType:"eml",
       filename: filename || "",
+      // 📌 개별 카드에서 제목을 제거하기 위해 subject는 thread grouping만 사용
       subject,
       from,
       to,
@@ -472,8 +474,6 @@
       threadKey
     };
   }
-
-
 
   /* --------------------------
      파일 처리 + 드래그드랍
