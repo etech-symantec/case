@@ -1,9 +1,8 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>6667777888999Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -227,13 +226,8 @@
   }
 
   function esc(s){
-    return String(s||"").replace(/[&<>]/g, m => ({
-      "&": "&amp;",
-      "<": "&lt;",
-      ">": "&gt;"
-    }[m]));
+    return String(s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
   }
-
 
   function makePreview(body){
     if(!body) return "(본문 없음)";
@@ -263,7 +257,7 @@
 
           if(enc.toUpperCase()==="Q"){
             let qp = text.replace(/_/g," ");
-            qp = qp.replace(/=([A-Fa-f0-9]{2})/g,(m,hex)=>String.fromCharCode(parseInt(hex,16)));
+            qp = qp.replace(/=([0-9A-Fa-f]{2})/g,(m,hex)=>String.fromCharCode(parseInt(hex,16)));
             const bytes = Uint8Array.from([...qp].map(c=>c.charCodeAt(0)));
             return new TextDecoder(charset).decode(bytes);
           }
@@ -304,26 +298,89 @@
   }
 
   /* --------------------------
-     MIME 본문 디코딩
+     base64 형태인지 간단히 판별
   -------------------------- */
-  function decodeText(node){
-    if(!node || node.content==null) return "";
-
-    if(typeof node.content === "string")
-      return node.content;
-
-    if(node.content instanceof Uint8Array){
-      let charset = (node.charset || "utf-8").toLowerCase();
-      if(charset.includes("ks_c_5601")) charset = "euc-kr";
-      try{
-        return new TextDecoder(charset).decode(node.content);
-      }catch(e){
-        return new TextDecoder("utf-8").decode(node.content);
-      }
-    }
-    return "";
+  function looksLikeBase64(str){
+    if(!str) return false;
+    const s = str.replace(/\s+/g,"");
+    if(s.length < 40) return false;
+    if(/[^A-Za-z0-9+/=]/.test(s)) return false;
+    // 너무 많은 '='가 있으면 이상하니 대략 필터
+    const eq = (s.match(/=/g)||[]).length;
+    if(eq > s.length/2) return false;
+    return true;
   }
 
+  /* --------------------------
+     MIME 본문 디코딩 (Content-Transfer-Encoding 반영)
+  -------------------------- */
+  function decodeText(node){
+    if(!node || node.content == null) return "";
+
+    // 1) raw string 추출
+    let raw = "";
+    if(typeof node.content === "string"){
+      raw = node.content;
+    }else if(node.content instanceof Uint8Array){
+      // base64/qp 헤더는 ASCII로 표현되므로 일단 ascii로 읽음
+      raw = new TextDecoder("ascii").decode(node.content);
+    }else{
+      return "";
+    }
+
+    // 2) transfer-encoding 헤더 추출
+    let encHeader = "";
+    if(typeof node.contentTransferEncoding === "string"){
+      encHeader = node.contentTransferEncoding.toLowerCase();
+    }else if(node.headers && node.headers["content-transfer-encoding"]){
+      const v = node.headers["content-transfer-encoding"];
+      if(Array.isArray(v)){
+        const first = v[0];
+        if(typeof first === "string") encHeader = first.toLowerCase();
+        else if(first && typeof first.value === "string") encHeader = first.value.toLowerCase();
+      }else if(typeof v === "string"){
+        encHeader = v.toLowerCase();
+      }
+    }
+
+    // 3) charset 추출
+    let charset =
+      (node.charset ||
+       (node.contentType && node.contentType.params && node.contentType.params.charset) ||
+       "utf-8"
+      ).toLowerCase();
+
+    if(charset.includes("ks_c_5601") || charset.includes("ks-c-5601")){
+      charset = "euc-kr";
+    }
+
+    // 4) base64 우선 디코딩
+    if(encHeader.includes("base64") || looksLikeBase64(raw)){
+      try{
+        const cleaned = raw.replace(/\s+/g,"");
+        const bin = atob(cleaned);
+        const bytes = Uint8Array.from([...bin].map(c=>c.charCodeAt(0)));
+        return new TextDecoder(charset).decode(bytes);
+      }catch(e){
+        console.warn("decodeText base64 디코딩 실패:", e);
+        // 실패 시 raw 그대로 리턴하고 아래 로직으로 넘어감
+      }
+    }
+
+    // 5) quoted-printable
+    if(encHeader.includes("quoted-printable")){
+      let qp = raw.replace(/=\r?\n/g,"");
+      qp = qp.replace(/=([0-9A-Fa-f]{2})/g,(m,hex)=>String.fromCharCode(parseInt(hex,16)));
+      return qp;
+    }
+
+    // 6) 별도 인코딩 정보가 없으면 raw 그대로 사용
+    return raw;
+  }
+
+  /* --------------------------
+     text/plain 재귀 수집
+  -------------------------- */
   function collectTextPlain(node, arr){
     if(!node) return;
 
@@ -347,85 +404,79 @@
   -------------------------- */
   function cleanupBody(body){
     if(!body) return "";
-  
-    // CRLF → LF
-    let out = body.replace(/\r\n/g, "\n");
+
+    let out = body.replace(/\r\n/g,"\n");
     const linesRaw = out.split("\n");
     const cleaned = [];
-  
-    for(let i = 0; i < linesRaw.length; i++){
+
+    for(let i=0;i<linesRaw.length;i++){
       let t = linesRaw[i].trim();
-  
-      /* 1) multipart 안내문 제거 */
+
+      // multipart 안내문 제거
       if(/^\s*This is a multi-?part message in MIME format\.?/i.test(t)){
         continue;
       }
-  
-      /* 2) Outlook 특유 boundary/Part 라인 제거 */
+
+      // Outlook 특유 boundary/part 라인 제거
       if(/^=+Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
       if(/^---=Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
       if(/^[-_]{3,}=Part/i.test(t)) continue;
-  
-      /* 3) MIME boundary 헤더 제거 */
-      if(/^[-_]+=*[A-Za-z0-9+/.\-_]+$/i.test(t)) continue;   // boundary line
+
+      // boundary & MIME 헤더류 제거
+      if(/^[-_]+=*[A-Za-z0-9+/.\-_]+$/i.test(t)) continue;
       if(/^[-_]+=.*nextpart/i.test(t)) continue;
       if(/^boundary\s*=/i.test(t)) continue;
       if(/^charset\s*=/i.test(t)) continue;
       if(/^content-(type|transfer|id|disposition)/i.test(t)) continue;
       if(/^mime-version:/i.test(t)) continue;
-  
-      /* 4) 외부메일 배너 제거 */
+
+      // 외부메일 배너
       if(/NOTE: This email was received from an external source/i.test(t)) continue;
-  
-      /* 5) Reply/Forward 구간 시작 → 여기서부터는 폐기 */
+
+      // 이전 메일 Reply 구간 시작 → 여기서부터는 버림
       if(/^[-_]{4,}\s*original message/i.test(t)) break;
       if(/^(from|to|sent|subject):\s/i.test(t)) break;
       if(/^on .* wrote:$/i.test(t)) break;
       if(/^_{5,}$/i.test(t)) break;
-  
+
       cleaned.push(linesRaw[i]);
     }
-  
+
     out = cleaned.join("\n");
+
+    // HTML 본문이면 텍스트만 추출
     let trimmed = out.trim();
-  
-    /* 6) HTML 본문인 경우 → 텍스트만 추출 */
     if(/<html[\s>]/i.test(trimmed)){
       try{
         const parser = new DOMParser();
         const doc = parser.parseFromString(trimmed, "text/html");
-        let text = doc.body ? (doc.body.textContent || "") : "";
-  
-        text = text.replace(/\r\n/g, "\n");
-        text = text.replace(/[ \t]+\n/g, "\n");
-        text = text.replace(/\n{3,}/g, "\n\n");
+        let text = doc.body ? doc.body.textContent || "" : "";
+        text = text.replace(/\r\n/g,"\n");
+        text = text.replace(/[ \t]+\n/g,"\n");
+        text = text.replace(/\n{3,}/g,"\n\n");
         return text.trim();
       }catch(e){
-        // 실패 시 non-HTML 로 처리
+        // 실패시 아래 QP 처리 계속
+        console.warn("HTML to text 변환 실패:", e);
       }
     }
-  
-    /* 7) Soft line break (= + newline) 제거 */
+
+    // soft line break (= + newline)
     out = out.replace(/=\r?\n/g, "");
-  
-    /* 8) Quoted-printable (=20, =09 등) 디코딩 */
+
+    // =20, =09 등의 QP escape 디코딩
     out = out.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
-      try{
-        return String.fromCharCode(parseInt(hex, 16));
-      }catch{
-        return m;
-      }
+      try { return String.fromCharCode(parseInt(hex, 16)); }
+      catch { return m; }
     });
-  
-    /* 9) 빈 줄 정리 */
-    out = out.replace(/\n{3,}/g, "\n\n");
-  
+
+    // 빈 줄 정리
+    out = out.replace(/\n{3,}/g,"\n\n");
     return out.trim();
   }
 
-
   /* --------------------------
-     Base64 본문 디코딩
+     Base64 본문 디코딩 (fallback용)
   -------------------------- */
   function tryDecodeBase64(text){
     if(!text) return text;
@@ -451,255 +502,92 @@
       return text;
     }
   }
-
-  /* ----------------------------------------------------------
-     최종 완전체 parseEml() — base64 / QP 본문 완벽 처리
-  ----------------------------------------------------------- */
-  function parseEml(raw, filename) {
+  /* --------------------------
+     EML 파서 (핵심)
+  -------------------------- */
+  function parseEml(raw, filename){
     const parts = raw.split(/\r?\n\r?\n/);
     let headerText = parts[0] || "";
     let bodyFallback = parts.slice(1).join("\n\n") || "";
-  
-    headerText = headerText.replace(/(\r?\n)(\t| )+/g, " ");
-  
-    function getHeader(name) {
-      const re = new RegExp("^" + name + "\\s*:\\s*(.+)$", "im");
+
+    headerText = headerText.replace(/(\r?\n)(\t| )+/g," ");
+
+    function getHeader(name){
+      const re = new RegExp("^"+name+"\\s*:\\s*(.+)$","im");
       const m = headerText.match(re);
-      return m ? m[1].trim() : "";
-    }
-  
-    let subject = decodeMimeWord(getHeader("Subject") || "(제목 없음)");
-    let fromRaw = getHeader("From");
-    let toRaw = getHeader("To");
-    let ccRaw = getHeader("Cc");
-    let dateStr = getHeader("Date");
-    let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
-  
-    let bodyText = "";
-    let htmlText = "";
-  
-    /* ----------------------------------------------------------
-       Base64 / QP 디코더
-    ----------------------------------------------------------- */
-    function decodePartBody(body, encoding) {
-      if (!body) return "";
-    
-      encoding = (encoding || "").toLowerCase().trim();
-    
-      // -------------------------
-      // 1) BASE64 (정식)
-      // -------------------------
-      if (encoding === "base64") {
-        try {
-          let decoded = atob(body.replace(/\s+/g, ""));
-    
-          // base64 를 풀었는데 결과가 또 base64 인 경우 → 재디코딩
-          if (/^[A-Za-z0-9+\/=]+$/.test(decoded) && decoded.length > 20) {
-            try {
-              let decoded2 = atob(decoded.replace(/\s+/g, ""));
-              return decoded2;
-            } catch {}
-          }
-    
-          // Base64 → QP(=XX) 패턴 있으면 QP 재해제
-          if (/=([0-9A-F]{2})/i.test(decoded)) {
-            decoded = decoded
-              .replace(/=\r?\n/g, "")
-              .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-                String.fromCharCode(parseInt(hex, 16))
-              );
-          }
-    
-          return decoded;
-        } catch (e) {
-          return body;
-        }
-      }
-    
-      // -------------------------
-      // 2) QUOTED-PRINTABLE
-      // -------------------------
-      if (encoding === "quoted-printable") {
-        try {
-          return body
-            .replace(/=\r?\n/g, "")
-            .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-              String.fromCharCode(parseInt(hex, 16))
-            );
-        } catch (e) {
-          return body;
-        }
-      }
-    
-      // -------------------------
-      // 3) 자동 감지 (fallback)
-      // -------------------------
-      const trimmed = body.trim();
-    
-      // base64 자동 감지 → 이중 Base64 자동 처리
-      if (/^[A-Za-z0-9+\/=]+$/.test(trimmed) && trimmed.length > 20) {
-        try {
-          let d1 = atob(trimmed.replace(/\s+/g, ""));
-          if (/^[A-Za-z0-9+\/=]+$/.test(d1) && d1.length > 20) {
-            try {
-              return atob(d1.replace(/\s+/g, ""));
-            } catch {}
-          }
-          return d1;
-        } catch {}
-      }
-    
-      return body;
+      return m?m[1].trim():"";
     }
 
-  
-    /* ----------------------------------------------------------
-       emailjs-mime-parser 활용
-    ----------------------------------------------------------- */
-    try {
+    let subject = decodeMimeWord(getHeader("Subject") || "(제목 없음)");
+    let fromRaw = getHeader("From");
+    let toRaw   = getHeader("To");
+    let ccRaw   = getHeader("Cc");
+    let dateStr = getHeader("Date");
+    let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
+
+    let bodyText = "";
+
+    try{
       const root = parseMime(raw);
-  
+
       const h = root.headers || {};
-      const pick = (key) => {
+      const pick = key=>{
         const v = h[key];
-        if (!v) return "";
-        if (Array.isArray(v)) {
-          if (typeof v[0] === "string") return v[0];
-          if (typeof v[0].value === "string") return v[0].value;
+        if(!v) return "";
+        if(Array.isArray(v)){
+          if(typeof v[0]==="string") return v[0];
+          if(typeof v[0].value==="string") return v[0].value;
         }
         return "";
       };
-  
+
       const sj = pick("subject");
       const fr = pick("from");
       const tr = pick("to");
       const cr = pick("cc");
       const dr = pick("date");
-  
-      if (sj) subject = decodeMimeWord(sj);
-      if (fr) fromRaw = fr;
-      if (tr) toRaw = tr;
-      if (cr) ccRaw = cr;
-      if (dr) {
+
+      if(sj) subject = decodeMimeWord(sj);
+      if(fr) fromRaw = fr;
+      if(tr) toRaw   = tr;
+      if(cr) ccRaw   = cr;
+      if(dr){
         const d2 = new Date(dr);
-        if (!isNaN(d2)) dateObj = d2;
+        if(!isNaN(d2)) dateObj = d2;
       }
-  
-      /* ----------------------------------------------------------
-         text/plain / text/html 파트 모두 수집
-      ----------------------------------------------------------- */
-      function collectParts(node) {
-        if (!node) return;
-  
-        const ct = node.contentType || {};
-        const type = (ct.type || "").toLowerCase();
-        const sub = (ct.subtype || "").toLowerCase();
-  
-        const encodingHeader =
-          (node.headers && node.headers["content-transfer-encoding"]) || "";
-  
-        // Plain text
-        if (type === "text" && sub === "plain") {
-          let content = decodeText(node);
-          content = decodePartBody(content, encodingHeader);
-          if (content.trim().length > 0) {
-            if (content.length > (bodyText?.length || 0)) {
-              bodyText = content;
-            }
-          }
-        }
-  
-        // HTML text
-        if (type === "text" && sub === "html") {
-          let content = decodeText(node);
-          content = decodePartBody(content, encodingHeader);
-          if (content.trim().length > 0) {
-            if (content.length > (htmlText?.length || 0)) {
-              htmlText = content;
-            }
-          }
-        }
-  
-        // Child nodes
-        if (node.childNodes) {
-          for (const c of node.childNodes) collectParts(c);
-        }
+
+      const plains = [];
+      collectTextPlain(root, plains);
+
+      if(plains.length){
+        plains.sort((a,b)=>b.length - a.length);
+        bodyText = plains[0];
+      }else{
+        bodyText = bodyFallback;
       }
-  
-      collectParts(root);
-  
-    } catch (e) {
+
+    }catch(e){
       console.warn("emailjs-mime-parser 실패 → fallback 본문 사용:", e);
       bodyText = bodyFallback;
     }
-  
-    /* ----------------------------------------------------------
-       fallback base64 / QP 자동 감지 (본문만 있을 때)
-    ----------------------------------------------------------- */
-    function fallbackDecode(text) {
-      if (!text) return text;
-  
-      // Base64 자동 감지
-      const trimmed = text.trim();
-      const isBase64 =
-        /^[A-Za-z0-9+\/=\r\n]+$/.test(trimmed) &&
-        trimmed.length > 50 &&
-        !trimmed.includes(" ");
-  
-      if (isBase64) {
-        try {
-          return atob(trimmed.replace(/\s+/g, ""));
-        } catch {}
-      }
-  
-      // quoted-printable 자동 감지
-      if (/=[0-9A-F]{2}/i.test(trimmed)) {
-        try {
-          return trimmed.replace(/=\r?\n/g, "")
-            .replace(/=([0-9A-F]{2})/gi, (_, hex) =>
-              String.fromCharCode(parseInt(hex, 16))
-            );
-        } catch {}
-      }
-  
-      return text;
-    }
-  
-    if (!bodyText && bodyFallback) {
-      bodyText = fallbackDecode(bodyFallback);
-    }
-  
-    /* ----------------------------------------------------------
-       HTML 본문은 텍스트로 변환
-    ----------------------------------------------------------- */
-    if (htmlText && (!bodyText || htmlText.length > bodyText.length)) {
-      try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(htmlText, "text/html");
-        let t = doc.body ? doc.body.textContent || "" : "";
-        t = t.replace(/\r\n/g, "\n");
-        t = t.replace(/[ \t]+\n/g, "\n");
-        t = t.replace(/\n{3,}/g, "\n\n");
-        bodyText = t.trim();
-      } catch {}
-    }
-  
-    /* ----------------------------------------------------------
-       최종 cleanup
-    ----------------------------------------------------------- */
+
+    // 혹시 남은 base64 인코딩 텍스트가 있으면 한번 더 디코딩 시도
+    bodyText = tryDecodeBase64(bodyText);
+
+    // MIME boundary/헤더 제거 + 지난 메일 내용 컷 + QP/HTML 정리
     bodyText = cleanupBody(bodyText);
-  
+
     const fromList = parseAddressList(fromRaw);
-    const toList = parseAddressList(toRaw);
-    const ccList = parseAddressList(ccRaw);
-  
+    const toList   = parseAddressList(toRaw);
+    const ccList   = parseAddressList(ccRaw);
+
     return {
-      sourceType: "eml",
+      sourceType:"eml",
       filename,
       subject,
       from: fromList,
-      to: toList,
-      cc: ccList,
+      to:   toList,
+      cc:   ccList,
       body: bodyText,
       dateStr,
       dateObj,
@@ -707,7 +595,6 @@
       threadKey: normalizeSubject(subject)
     };
   }
-
 
   /* --------------------------
      케이스 데이터 구조
