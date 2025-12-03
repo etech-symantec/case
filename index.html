@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>3333Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>344444333Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -521,6 +521,22 @@
 
     // 4) preview 생성
     const preview = makePreview(bodyText);
+
+    // ---------------------------------------------------------
+    // (추가) bodyText가 base64로 보이면 디코딩 시도
+    // ---------------------------------------------------------
+    if(/^[A-Za-z0-9+\/=\r\n]+$/.test(bodyText.trim()) && bodyText.length > 50){
+      try{
+        const cleaned = bodyText.replace(/\s+/g,"");
+        const decoded = atob(cleaned);
+        // 디코딩한 결과가 텍스트로 적절하면 그걸 사용
+        if(/[\x00-\x08]/.test(decoded) === false){ 
+          bodyText = decoded;
+        }
+      }catch(e){
+        console.warn("Base64 fallback decode 실패:", e);
+      }
+    }
     
     return {
       sourceType:"eml",
