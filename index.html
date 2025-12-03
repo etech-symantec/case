@@ -227,8 +227,13 @@
   }
 
   function esc(s){
-    return String(s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;","">":"&gt;"}[m]));
+    return String(s||"").replace(/[&<>]/g, m => ({
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;"
+    }[m]));
   }
+
 
   function makePreview(body){
     if(!body) return "(본문 없음)";
@@ -342,81 +347,82 @@
   -------------------------- */
   function cleanupBody(body){
     if(!body) return "";
-
-    let out = body.replace(/\r\n/g,"\n");
+  
+    // CRLF → LF
+    let out = body.replace(/\r\n/g, "\n");
     const linesRaw = out.split("\n");
     const cleaned = [];
-
-    for(let i=0;i<linesRaw.length;i++){
+  
+    for(let i = 0; i < linesRaw.length; i++){
       let t = linesRaw[i].trim();
-
-      // multipart 안내문 제거
+  
+      /* 1) multipart 안내문 제거 */
       if(/^\s*This is a multi-?part message in MIME format\.?/i.test(t)){
         continue;
       }
-
-      // Outlook 특유 boundary/part 라인 제거
+  
+      /* 2) Outlook 특유 boundary/Part 라인 제거 */
       if(/^=+Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
       if(/^---=Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
       if(/^[-_]{3,}=Part/i.test(t)) continue;
-
-      // boundary & MIME 헤더류 제거
-      if(/^[-_]+=*[A-Za-z0-9+/.\-_]+$/i.test(t)) continue;
+  
+      /* 3) MIME boundary 헤더 제거 */
+      if(/^[-_]+=*[A-Za-z0-9+/.\-_]+$/i.test(t)) continue;   // boundary line
       if(/^[-_]+=.*nextpart/i.test(t)) continue;
       if(/^boundary\s*=/i.test(t)) continue;
       if(/^charset\s*=/i.test(t)) continue;
       if(/^content-(type|transfer|id|disposition)/i.test(t)) continue;
       if(/^mime-version:/i.test(t)) continue;
-
-      // 외부메일 배너
+  
+      /* 4) 외부메일 배너 제거 */
       if(/NOTE: This email was received from an external source/i.test(t)) continue;
-
-      // 이전 메일 Reply 구간 시작 → 여기서부터는 버림
+  
+      /* 5) Reply/Forward 구간 시작 → 여기서부터는 폐기 */
       if(/^[-_]{4,}\s*original message/i.test(t)) break;
       if(/^(from|to|sent|subject):\s/i.test(t)) break;
       if(/^on .* wrote:$/i.test(t)) break;
       if(/^_{5,}$/i.test(t)) break;
-
+  
       cleaned.push(linesRaw[i]);
     }
-
+  
     out = cleaned.join("\n");
-
-    // HTML 본문이면 텍스트만 추출
     let trimmed = out.trim();
-    if(/^\s*This is a multi-?part message in MIME format\.?/i.test(trimmed)){
-      const idx = out.toLowerCase().indexOf("<html");
-      if(idx !== -1){
-        trimmed = out.slice(idx);
-      }
-    }
+  
+    /* 6) HTML 본문인 경우 → 텍스트만 추출 */
     if(/<html[\s>]/i.test(trimmed)){
       try{
         const parser = new DOMParser();
         const doc = parser.parseFromString(trimmed, "text/html");
-        let text = doc.body ? doc.body.textContent || "" : "";
-        text = text.replace(/\r\n/g,"\n");
-        text = text.replace(/[ \t]+\n/g,"\n");
-        text = text.replace(/\n{3,}/g,"\n\n");
+        let text = doc.body ? (doc.body.textContent || "") : "";
+  
+        text = text.replace(/\r\n/g, "\n");
+        text = text.replace(/[ \t]+\n/g, "\n");
+        text = text.replace(/\n{3,}/g, "\n\n");
         return text.trim();
       }catch(e){
-        // 실패시 그냥 계속 진행
+        // 실패 시 non-HTML 로 처리
       }
     }
-
-    // soft line break (= + newline)
+  
+    /* 7) Soft line break (= + newline) 제거 */
     out = out.replace(/=\r?\n/g, "");
-
-    // =20, =09 등의 QP escape 디코딩
+  
+    /* 8) Quoted-printable (=20, =09 등) 디코딩 */
     out = out.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
-      try { return String.fromCharCode(parseInt(hex, 16)); }
-      catch { return m; }
+      try{
+        return String.fromCharCode(parseInt(hex, 16));
+      }catch{
+        return m;
+      }
     });
-
-    // 빈 줄 정리
-    out = out.replace(/\n{3,}/g,"\n\n");
+  
+    /* 9) 빈 줄 정리 */
+    out = out.replace(/\n{3,}/g, "\n\n");
+  
     return out.trim();
   }
+
 
   /* --------------------------
      Base64 본문 디코딩
