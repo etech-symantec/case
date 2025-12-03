@@ -341,61 +341,59 @@
   -------------------------- */
   function cleanupBody(body){
     if(!body) return "";
-
-    // Outlook 특유 boundary 패턴 제거
-    if (/^=+Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
-    if (/^---=Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
-    if (/^[-_]{3,}=Part/i.test(t)) continue;
-    if (/^\s*This is a multi-part message in MIME format/i.test(t)) continue;
-
-
+  
     let out = body.replace(/\r\n/g,"\n");
     const lines = out.split("\n");
     const cleaned = [];
-
-    for(let i=0;i<lines.length;i++){
+  
+    for (let i = 0; i < lines.length; i++) {
       let t = lines[i].trim();
-
-      // boundary & MIME 헤더류 제거
-      if(/^[-_]+=*[A-Za-z0-9+/.\-_]+$/i.test(t)) continue;      // boundary line
-      if(/^[-_]+=.*nextpart/i.test(t)) continue;
-      if(/^boundary\s*=/i.test(t)) continue;
-      if(/^charset\s*=/i.test(t)) continue;
-      if(/multipart message in mime format/i.test(t)) continue;
-      if(/^content-(type|transfer|id|disposition)/i.test(t)) continue;
-      if(/^mime-version:/i.test(t)) continue;
-
-      // 외부메일 배너
-      if(/NOTE: This email was received from an external source/i.test(t)) continue;
-
-      // 이전 메일 Reply 구간 시작 → 여기서부터는 버림
-      if(/^[-_]{4,}\s*original message/i.test(t)) break;
-      if(/^(from|to|sent|subject):\s/i.test(t)) break;
-      if(/^on .* wrote:$/i.test(t)) break;
-      if(/^_{5,}$/i.test(t)) break;
-
+  
+      // ---------- MIME boundary 제거 ----------
+      if (/^=+Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
+      if (/^---=Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
+      if (/^[-_]{3,}=Part/i.test(t)) continue;
+      if (/^\s*This is a multi-part message in MIME format/i.test(t)) continue;
+  
+      // 기본 boundary 라인
+      if (/^[-_]+=*[A-Za-z0-9+/.\-_]+$/i.test(t)) continue;
+      if (/^[-_]+=.*nextpart/i.test(t)) continue;
+      if (/^boundary\s*=/i.test(t)) continue;
+      if (/^charset\s*=/i.test(t)) continue;
+  
+      // MIME 헤더류
+      if (/^content-(type|transfer|id|disposition)/i.test(t)) continue;
+      if (/^mime-version:/i.test(t)) continue;
+  
+      // 외부메일 경고 제거
+      if (/NOTE: This email was received from an external source/i.test(t)) continue;
+  
+      // 이전 메일 Reply 구간 차단
+      if (/^[-_]{4,}\s*original message/i.test(t)) break;
+      if (/^(from|to|sent|subject):\s/i.test(t)) break;
+      if (/^on .* wrote:$/i.test(t)) break;
+      if (/^_{5,}$/i.test(t)) break;
+  
       cleaned.push(lines[i]);
     }
-
+  
     out = cleaned.join("\n");
-
-    // -------------------------------------------
-    // 🔥 quoted-printable 잔여물 (=20, =09, soft wrap) 제거
-    // -------------------------------------------
-    
-    // soft line break (= + newline)
+  
+    // ---------- QP soft-wrap 처리 ----------
     out = out.replace(/=\r?\n/g, "");
-    
-    // =20, =09 등의 QP escape 디코딩
+  
+    // ---------- QP hex 디코딩 (=20 등) ----------
     out = out.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
       try { return String.fromCharCode(parseInt(hex, 16)); }
       catch { return m; }
     });
-    
+  
     // 빈 줄 정리
-    out = out.replace(/\n{3,}/g,"\n\n");
+    out = out.replace(/\n{3,}/g, "\n\n");
+  
     return out.trim();
   }
+
 
   /* --------------------------
      Base64 본문 디코딩
