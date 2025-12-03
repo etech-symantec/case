@@ -302,462 +302,177 @@
   }
 
   /* --------------------------
-     emailjs-mime-parser + 수동 MIME 파싱 기반 EML 파서
-     → "실제 메일 내용" 텍스트만 추출
+     안전 개선된 parseEml()
   -------------------------- */
-  function parseEml(rawEml) {
-    // ===== 공통 유틸 =====
-    function normalizeNewlines(str) {
-      return str.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+  function parseEml(raw, filename){
+  
+    // 1) 헤더 / 바디 분리 (fallback)
+    const parts = raw.split(/\r?\n\r?\n/);
+    let headerText = parts[0] || "";
+    let bodyFallback = parts.slice(1).join("\n\n") || "";
+  
+    headerText = headerText.replace(/(\r?\n)(\t| )+/g, " ");
+  
+    function getHeader(name){
+      const re = new RegExp("^"+name+"\\s*:\\s*(.+)$", "im");
+      const m = headerText.match(re);
+      return m ? m[1].trim() : "";
     }
   
-    function mapCharset(cs) {
-      if (!cs) return "utf-8";
-      cs = cs.toLowerCase().trim();
-      if (cs === "ks_c_5601-1987" || cs === "ks_c_5601" || cs === "cp949") {
-        return "euc-kr";
+    let subject = getHeader("Subject") || "(제목 없음)";
+    let from    = getHeader("From");
+    let to      = getHeader("To");
+    let dateStr = getHeader("Date");
+    let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
+  
+    /* ============================
+       Reply 본문 정리 함수
+    ============================ */
+    function stripReplyContent(text){
+      if(!text) return text;
+  
+      const patterns = [
+        /^-----Original Message-----/i,
+        /^----- Forwarded by/i,
+        /^On .+ wrote:$/i,
+        /^보낸 사람:/i,
+        /^받는 사람:/i,
+        /^참조:/i,
+        /^발신:/i
+      ];
+  
+      const lines = text.split(/\r?\n/);
+      let out = [];
+  
+      for(let i=0;i<lines.length;i++){
+        if(patterns.some(p => p.test(lines[i]))) break;
+        out.push(lines[i]);
       }
-      return cs;
+      return out.join("\n").trim();
     }
   
-    function decodeBytesToString(bytes, charset) {
-      charset = mapCharset(charset);
-      try {
-        return new TextDecoder(charset).decode(bytes);
-      } catch (e) {
-        // 지원 안 되는 charset이면 UTF-8로라도 복구
-        try {
-          return new TextDecoder("utf-8").decode(bytes);
-        } catch (e2) {
-          // 진짜 안 되면 대충 ASCII로
-          return String.fromCharCode.apply(null, Array.from(bytes));
-        }
-      }
+    /* ============================
+       HTML/Word 정크 제거
+    ============================ */
+    function stripHtmlGarbage(body){
+      if(!body) return body;
+  
+      // Word/Office HTML block 제거
+      body = body.replace(/<html[\s\S]*?<\/html>/gi, "");
+  
+      // base64 Word garbage 제거
+      body = body.replace(/charset="?ks_c_5601-1987"?/gi, "");
+      body = body.replace(/<meta[^>]+>/gi, "");
+  
+      return body.trim();
     }
   
-    // ===== 헤더 파싱 (folded header 포함) =====
-    function parseHeaders(headerText) {
-      const headers = {};
-      const lines = headerText.split("\n");
-      let currentName = null;
-      let currentValue = "";
+    /* ============================
+       emailjs-mime-parser 파싱
+    ============================ */
+    let extractedBody = "";
   
-      for (let line of lines) {
-        if (/^\s/.test(line) && currentName) {
-          // 이어지는 줄
-          currentValue += " " + line.trim();
-        } else {
-          if (currentName) {
-            headers[currentName.toLowerCase()] = currentValue.trim();
+    try{
+      const root = parseMime(raw);
+  
+      function findTextPart(node){
+        if(!node) return null;
+        const ct = node.contentType||{};
+        const type = (ct.type||"").toLowerCase();
+        const sub  = (ct.subtype||"").toLowerCase();
+  
+        if(type==="text" && sub==="plain") return node;
+  
+        if(node.childNodes){
+          for(const ch of node.childNodes){
+            const r = findTextPart(ch);
+            if(r) return r;
           }
-          const idx = line.indexOf(":");
-          if (idx !== -1) {
-            currentName = line.substring(0, idx).trim();
-            currentValue = line.substring(idx + 1).trim();
-          } else {
-            currentName = null;
-            currentValue = "";
+        }
+        return null;
+      }
+  
+      const textNode = findTextPart(root);
+  
+      function decodeContent(node){
+        if(!node || node.content==null) return "";
+        if(typeof node.content==="string") return node.content;
+  
+        if(node.content instanceof Uint8Array){
+          try{
+            return new TextDecoder(node.charset || "utf-8").decode(node.content);
+          }catch(e){
+            return new TextDecoder("utf-8").decode(node.content);
           }
         }
-      }
-      if (currentName) {
-        headers[currentName.toLowerCase()] = currentValue.trim();
-      }
-      return headers;
-    }
-  
-    // ===== Content-Type 파싱 (mimeType / charset / boundary) =====
-    function parseContentType(value) {
-      let mimeType = "text/plain";
-      let charset = "utf-8";
-      let boundary = null;
-  
-      if (!value) {
-        return { mimeType, charset, boundary };
+        return "";
       }
   
-      const raw = value;
-      const parts = raw.split(";");
-      if (parts[0]) {
-        mimeType = parts[0].trim().toLowerCase();
+      if(textNode){
+        extractedBody = decodeContent(textNode).trim();
       }
   
-      // charset은 여러 번 나올 수 있어, 마지막 것을 우선
-      const charsetMatches = raw.match(/charset\s*=\s*"?([^";]+)/gi);
-      if (charsetMatches && charsetMatches.length > 0) {
-        const last = charsetMatches[charsetMatches.length - 1];
-        const m = /charset\s*=\s*"?([^";]+)/i.exec(last);
-        if (m && m[1]) {
-          charset = m[1].trim();
-        }
-      }
+      // MIME 헤더 보정
+      if(root.headers){
+        const h = root.headers;
   
-      const boundaryMatch = raw.match(/boundary\s*=\s*"?([^";]+)/i);
-      if (boundaryMatch && boundaryMatch[1]) {
-        boundary = boundaryMatch[1].trim();
-      }
-  
-      return {
-        mimeType: mimeType || "text/plain",
-        charset: charset || "utf-8",
-        boundary,
-      };
-    }
-  
-    // ===== Content-Transfer-Encoding 디코딩 =====
-    function decodeBase64(body, charset) {
-      const cleaned = body.replace(/\s+/g, "");
-      if (!cleaned) return "";
-      let binary;
-      try {
-        binary = atob(cleaned);
-      } catch (e) {
-        return body; // 실패하면 원문 반환
-      }
-      const len = binary.length;
-      const bytes = new Uint8Array(len);
-      for (let i = 0; i < len; i++) {
-        bytes[i] = binary.charCodeAt(i) & 0xff;
-      }
-      return decodeBytesToString(bytes, charset);
-    }
-  
-    function decodeQuotedPrintable(body, charset) {
-      // soft line breaks 제거
-      let str = body.replace(/=\n/g, "").replace(/=\r\n/g, "");
-      const bytes = [];
-      for (let i = 0; i < str.length; i++) {
-        const ch = str[i];
-        if (ch === "=" && i + 2 < str.length && /[0-9A-Fa-f]{2}/.test(str.substr(i + 1, 2))) {
-          const hex = str.substr(i + 1, 2);
-          bytes.push(parseInt(hex, 16));
-          i += 2;
-        } else {
-          bytes.push(ch.charCodeAt(0) & 0xff);
-        }
-      }
-      return decodeBytesToString(new Uint8Array(bytes), charset);
-    }
-  
-    function decodeTransfer(body, cte, charset, mimeType) {
-      cte = (cte || "").toLowerCase();
-      let decoded;
-  
-      if (cte === "base64") {
-        decoded = decodeBase64(body, charset);
-      } else if (cte === "quoted-printable") {
-        decoded = decodeQuotedPrintable(body, charset);
-      } else {
-        // 7bit / 8bit / binary 등 : 이미 ASCII 위주라고 가정
-        const bytes = new Uint8Array(body.split("").map(c => c.charCodeAt(0) & 0xff));
-        decoded = decodeBytesToString(bytes, charset);
-      }
-  
-      return decoded;
-    }
-  
-    // ===== text/html → 순수 텍스트 =====
-    function htmlToText(html) {
-      if (!html) return "";
-      // Word/Office 전용 XML, 스타일, 코멘트 제거 (대부분 브라우저에서 자동 무시되지만 한번 더)
-      html = html
-        .replace(/<style[\s\S]*?<\/style>/gi, "")
-        .replace(/<script[\s\S]*?<\/script>/gi, "")
-        .replace(/<xml[\s\S]*?<\/xml>/gi, "")
-        .replace(/<!--[\s\S]*?-->/g, "");
-  
-      const div = document.createElement("div");
-      div.innerHTML = html;
-      let text = div.innerText || div.textContent || "";
-  
-      // 줄바꿈 정리
-      text = text
-        .replace(/\r/g, "\n")
-        .replace(/\n[ \t]+\n/g, "\n")
-        .replace(/\n{3,}/g, "\n\n")
-        .trim();
-  
-      return text;
-    }
-  
-    // ===== MIME 인코딩 된 헤더 (=?charset?B?...?=) 디코딩 =====
-    function decodeMimeHeader(value) {
-      if (!value) return "";
-      const regex = /=\?([^?]+)\?([bqBQ])\?([^?]*)\?=/g;
-  
-      return value.replace(regex, (match, charset, enc, text) => {
-        charset = charset || "utf-8";
-        enc = (enc || "B").toUpperCase();
-  
-        if (enc === "B") {
-          // Base64
-          const cleaned = text.replace(/\s+/g, "");
-          let binary;
-          try {
-            binary = atob(cleaned);
-          } catch (e) {
-            return text;
+        const pick = key => {
+          const v = h[key];
+          if(!v) return "";
+          if(Array.isArray(v)){
+            if(typeof v[0]==="string") return v[0];
+            if(v[0]?.value) return v[0].value;
           }
-          const bytes = new Uint8Array(binary.length);
-          for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i) & 0xff;
-          }
-          return decodeBytesToString(bytes, charset);
-        } else {
-          // Q-encoding
-          let s = text.replace(/_/g, " ");
-          const bytes = [];
-          for (let i = 0; i < s.length; i++) {
-            const ch = s[i];
-            if (ch === "=" && i + 2 < s.length && /[0-9A-Fa-f]{2}/.test(s.substr(i + 1, 2))) {
-              const hex = s.substr(i + 1, 2);
-              bytes.push(parseInt(hex, 16));
-              i += 2;
-            } else {
-              bytes.push(s.charCodeAt(i) & 0xff);
-            }
-          }
-          return decodeBytesToString(new Uint8Array(bytes), charset);
+          return "";
+        };
+  
+        subject = pick("subject") || subject;
+        from    = pick("from")    || from;
+        to      = pick("to")      || to;
+        const d = pick("date");
+        if(d){
+          dateStr = d;
+          const tmp = new Date(d);
+          if(!isNaN(tmp)) dateObj = tmp;
         }
-      });
-    }
-  
-    // ===== 단일 파트 디코딩 =====
-    function decodeSinglePart(headers, bodyText, defaultMime, defaultCharset) {
-      const ctHeader = headers["content-type"] || "";
-      const { mimeType, charset } = parseContentType(ctHeader || defaultMime || "text/plain");
-      const effectiveCharset = charset || defaultCharset || "utf-8";
-      const cte = headers["content-transfer-encoding"] || "";
-  
-      const decoded = decodeTransfer(bodyText, cte, effectiveCharset, mimeType);
-      let text = decoded;
-      let rawHtml = null;
-  
-      if (mimeType.indexOf("text/html") === 0) {
-        rawHtml = decoded;
-        text = htmlToText(decoded);
       }
   
-      return {
-        headers,
-        mimeType,
-        charset: mapCharset(effectiveCharset),
-        text,
-        rawHtml,
-        raw: decoded,
-        multipart: false,
-        children: [],
-      };
-  }
-
-  // ===== multipart 파트 파싱 =====
-  function parseMultipart(bodyText, boundary, parentCharset) {
-    const parts = [];
-    if (!boundary) return parts;
-
-    const boundaryText = "--" + boundary;
-    const lines = bodyText.split("\n");
-    let currentPartLines = [];
-    let inPart = false;
-
-    for (let line of lines) {
-      if (line.startsWith(boundaryText)) {
-        if (inPart && currentPartLines.length > 0) {
-          parts.push(currentPartLines.join("\n"));
-          currentPartLines = [];
-        }
-        if (line.startsWith(boundaryText + "--")) {
-          inPart = false;
-          break;
-        } else {
-          inPart = true;
-        }
-      } else if (inPart) {
-        currentPartLines.push(line);
-      }
+    }catch(e){
+      console.warn("emailjs-mime-parser 실패, fallback 본문 사용:", e);
+      extractedBody = bodyFallback.trim();
     }
-    if (inPart && currentPartLines.length > 0) {
-      parts.push(currentPartLines.join("\n"));
-    }
-
-    // 각 part를 다시 헤더/바디로 나눠 재귀 처리
-    const nodes = [];
-    for (let rawPart of parts) {
-      const splitIndex = rawPart.indexOf("\n\n");
-      let headerText = "";
-      let body = "";
-      if (splitIndex === -1) {
-        headerText = rawPart;
-        body = "";
-      } else {
-        headerText = rawPart.substring(0, splitIndex);
-        body = rawPart.substring(splitIndex + 2);
-      }
-      const headers = parseHeaders(headerText);
-      const ctHeader = headers["content-type"] || "";
-      const { mimeType, charset, boundary: childBoundary } = parseContentType(ctHeader || "");
-      const effectiveCharset = charset || parentCharset || "utf-8";
-
-      if (mimeType && mimeType.startsWith("multipart/") && childBoundary) {
-        const children = parseMultipart(body, childBoundary, effectiveCharset);
-        nodes.push({
-          headers,
-          mimeType,
-          charset: mapCharset(effectiveCharset),
-          multipart: true,
-          children,
-          text: "",
-          rawHtml: null,
-        });
-      } else {
-        nodes.push(decodeSinglePart(headers, body, mimeType, effectiveCharset));
-      }
-    }
-
-    return nodes;
-  }
-
-  // ===== 지난 메일 내용 제거 =====
-  function stripReply(body){
-    if(!body) return body;
   
-    const patterns = [
-      /^-----Original Message-----/i,
-      /^----- Forwarded by/i,
-      /^On .* wrote:$/i,
-      /^보낸 사람:/i,
-      /^받는 사람:/i,
-      /^참조:/i,
-      /^발신:/i
-    ];
+    /* ============================
+       본문 후처리
+    ============================ */
   
-    const lines = body.split(/\r?\n/);
-    let clean = [];
+    // fallback 적용
+    let finalBody = extractedBody || bodyFallback;
   
-    for(let i=0;i<lines.length;i++){
-      let stop = patterns.some(p => p.test(lines[i]));
-      if(stop) break;      // 여기서부터 아래는 제거
-      clean.push(lines[i]);
-    }
-    return clean.join("\n").trim();
-  }
+    // Word/HTML 정크 제거
+    finalBody = stripHtmlGarbage(finalBody);
   
-  // parseEml 마지막 return 직전:
-  body = stripReply(body);
-
-
-  // ===== 실제 EML 파싱 시작 =====
-  if (!rawEml) {
+    // reply chain 제거
+    finalBody = stripReplyContent(finalBody);
+  
+    // 미리보기 생성
+    const preview = makePreview(finalBody);
+    const threadKey = normalizeSubject(subject);
+  
     return {
-      headers: {},
-      subject: "",
-      from: "",
-      to: "",
-      date: "",
-      body: "",
-      rawHtml: "",
-      contentType: "text/plain",
+      sourceType: "eml",
+      filename: filename || "",
+      subject,
+      from,
+      to,
+      body: finalBody,
+      dateStr,
+      dateObj,
+      preview,
+      threadKey
     };
   }
 
-  const normalized = normalizeNewlines(rawEml);
-  const firstBlank = normalized.indexOf("\n\n");
-  let headerText, bodyText;
-
-  if (firstBlank === -1) {
-    headerText = normalized;
-    bodyText = "";
-  } else {
-    headerText = normalized.substring(0, firstBlank);
-    bodyText = normalized.substring(firstBlank + 2);
-  }
-
-  const headers = parseHeaders(headerText);
-  const rootCtHeader = headers["content-type"] || "";
-  const { mimeType: rootMimeType, charset: rootCharset, boundary: rootBoundary } =
-    parseContentType(rootCtHeader);
-
-  let body = "";
-  let rawHtml = "";
-
-  if (rootMimeType && rootMimeType.startsWith("multipart/") && rootBoundary) {
-    // multipart: 트리 구조로 파싱 후 text/plain 우선 선택
-    const rootNode = {
-      headers,
-      mimeType: rootMimeType,
-      charset: mapCharset(rootCharset || "utf-8"),
-      multipart: true,
-      children: parseMultipart(bodyText, rootBoundary, rootCharset || "utf-8"),
-      text: "",
-      rawHtml: null,
-    };
-
-    const textPlainParts = [];
-    const textHtmlParts = [];
-
-    function walk(node) {
-      if (!node) return;
-      if (node.multipart && node.children && node.children.length) {
-        node.children.forEach(walk);
-      } else {
-        if (!node.mimeType) return;
-        const mt = node.mimeType.toLowerCase();
-        if (mt.indexOf("text/plain") === 0) {
-          textPlainParts.push(node);
-        } else if (mt.indexOf("text/html") === 0) {
-          textHtmlParts.push(node);
-        }
-      }
-    }
-
-    walk(rootNode);
-
-    if (textPlainParts.length > 0) {
-      // utf-8 / euc-kr 우선
-      let chosen =
-        textPlainParts.find(p => p.charset === "utf-8" || p.charset === "euc-kr") ||
-        textPlainParts[0];
-      body = (chosen.text || "").trim();
-    } else if (textHtmlParts.length > 0) {
-      let chosen =
-        textHtmlParts.find(p => p.charset === "utf-8" || p.charset === "euc-kr") ||
-        textHtmlParts[0];
-      rawHtml = chosen.rawHtml || chosen.raw || "";
-      body = htmlToText(rawHtml);
-    } else {
-      body = "";
-      rawHtml = "";
-    }
-
-    if (!rawHtml && textHtmlParts.length > 0) {
-      const htmlNode =
-        textHtmlParts.find(p => p.charset === "utf-8" || p.charset === "euc-kr") ||
-        textHtmlParts[0];
-      rawHtml = htmlNode.rawHtml || htmlNode.raw || "";
-    }
-  } else {
-    // 단일 파트
-    const part = decodeSinglePart(headers, bodyText, rootMimeType, rootCharset || "utf-8");
-    body = (part.text || "").trim();
-    rawHtml = part.rawHtml || "";
-  }
-
-  const subject = decodeMimeHeader(headers["subject"]);
-  const from = decodeMimeHeader(headers["from"]);
-  const to = decodeMimeHeader(headers["to"]);
-  const date = headers["date"] || "";
-
-  return {
-    headers,
-    subject,
-    from,
-    to,
-    date,
-    body,
-    rawHtml,
-    contentType: rootMimeType || "text/plain",
-  };
-}
 
 
   /* --------------------------
