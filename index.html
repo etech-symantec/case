@@ -527,78 +527,203 @@ function parseMime(raw) {
     const parts = raw.split(/\r?\n\r?\n/);
     let headerText = parts[0] || "";
     let bodyFallback = parts.slice(1).join("\n\n") || "";
-
+  
     headerText = headerText.replace(/(\r?\n)(\t| )+/g," ");
-
+  
     function getHeader(name){
       const re = new RegExp("^"+name+"\\s*:\\s*(.+)$","im");
       const m = headerText.match(re);
       return m?m[1].trim():"";
     }
-
+  
     let subject = decodeMimeWord(getHeader("Subject") || "(제목 없음)");
     let fromRaw = getHeader("From");
     let toRaw   = getHeader("To");
     let ccRaw   = getHeader("Cc");
     let dateStr = getHeader("Date");
     let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
-
+  
     let bodyText = "";
-
+    const attachments = [];
+  
+    let root = null;
+  
     try{
-      const root = parseMime(raw);
-
-      const h = root.headers || {};
-      const pick = key=>{
-        const v = h[key];
-        if(!v) return "";
-        if(Array.isArray(v)){
-          if(typeof v[0]==="string") return v[0];
-          if(typeof v[0].value==="string") return v[0].value;
-        }
-        return "";
-      };
-
-      const sj = pick("subject");
-      const fr = pick("from");
-      const tr = pick("to");
-      const cr = pick("cc");
-      const dr = pick("date");
-
-      if(sj) subject = decodeMimeWord(sj);
-      if(fr) fromRaw = fr;
-      if(tr) toRaw   = tr;
-      if(cr) ccRaw   = cr;
-      if(dr){
-        const d2 = new Date(dr);
-        if(!isNaN(d2)) dateObj = d2;
+      root = parseMime(raw);
+    }catch(e){
+      console.warn("parseMime 오류 → fallback 사용", e);
+      root = null;
+    }
+  
+    /* ----------------------------------------------------
+       1) base64 우선 디코딩 규칙 적용을 위한 helper
+    ---------------------------------------------------- */
+    function decodeTextWithPriority(node){
+      if(!node) return "";
+  
+      const ct = node.contentType || {};
+      const type = (ct.type||"").toLowerCase();
+      const subtype = (ct.subtype||"").toLowerCase();
+  
+      // 1) charset
+      let charset =
+        (node.charset ||
+         (node.contentType && node.contentType.params && node.contentType.params.charset) ||
+         "utf-8").toLowerCase();
+      if(charset.includes("ks_c_5601") || charset.includes("ks-c-5601"))
+        charset = "euc-kr";
+  
+      // 2) transfer-encoding
+      let encHeader = "";
+      if(typeof node.contentTransferEncoding === "string"){
+        encHeader = node.contentTransferEncoding.toLowerCase();
+      }else if(node.headers && node.headers["content-transfer-encoding"]){
+        const v = node.headers["content-transfer-encoding"];
+        if(typeof v === "string") encHeader = v.toLowerCase();
+        else if(Array.isArray(v) && typeof v[0] === "string") encHeader = v[0].toLowerCase();
+        else if(Array.isArray(v) && v[0]?.value) encHeader = v[0].value.toLowerCase();
       }
-
-      const plains = [];
-      collectTextPlain(root, plains);
-
-      if(plains.length){
-        plains.sort((a,b)=>b.length - a.length);
-        bodyText = plains[0];
+  
+      /* ----------------------------------------------------
+         **A. 이미지 attachment는 처리 로직이 다름 → 바로 빠져나감**
+      ---------------------------------------------------- */
+      if(type === "image"){
+        let filename = "";
+        if(ct.params?.name) filename = ct.params.name;
+        if(node.content instanceof Uint8Array){
+          attachments.push({
+            filename,
+            contentType: `${type}/${subtype}`,
+            data: node.content
+          });
+        }
+        return ""; // 본문엔 포함 X
+      }
+  
+      /* ----------------------------------------------------
+         **B. 바이너리(Uint8Array)는 이미 디코딩된 상태 → 텍스트 처리**
+      ---------------------------------------------------- */
+      if(node.content instanceof Uint8Array){
+        try{
+          return new TextDecoder(charset).decode(node.content);
+        }catch{
+          return new TextDecoder("utf-8").decode(node.content);
+        }
+      }
+  
+      /* ----------------------------------------------------
+         **C. 문자열(raw) 인 경우 base64 우선 디코딩**
+      ---------------------------------------------------- */
+      let raw = "";
+      if(typeof node.content === "string") raw = node.content;
+      else return "";
+  
+      const looksB64 = encHeader.includes("base64") || looksLikeBase64(raw);
+  
+      if(looksB64){
+        try{
+          const cleaned = raw.replace(/\s+/g,"");
+          const bin = atob(cleaned);
+          const bytes = Uint8Array.from([...bin].map(c=>c.charCodeAt(0)));
+          const decoded = new TextDecoder(charset).decode(bytes);
+  
+          // 바이너리 제어문자 검사
+          if(!/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(decoded)){
+            return decoded;
+          }
+        }catch(e){
+          console.warn("base64 디코딩 실패", e);
+        }
+      }
+  
+      // quoted-printable
+      if(encHeader.includes("quoted-printable")){
+        let qp = raw.replace(/=\r?\n/g,"");
+        qp = qp.replace(/=([0-9A-Fa-f]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));
+        return qp;
+      }
+  
+      return raw;
+    }
+  
+    /* ----------------------------------------------------
+       2) text/plain 최종 수집 (base64 우선 디코딩 버전)
+    ---------------------------------------------------- */
+    function collectPlain(node, arr){
+      if(!node) return;
+  
+      const ct = node.contentType || {};
+      const type = (ct.type||"").toLowerCase();
+      const subtype = (ct.subtype||"").toLowerCase();
+  
+      if(type==="text" && subtype==="plain"){
+        const t = decodeTextWithPriority(node);
+        if(t && t.trim()) arr.push(t);
+      }
+  
+      if(node.childNodes){
+        for(const c of node.childNodes) collectPlain(c, arr);
+      }
+    }
+  
+    /* ----------------------------------------------------
+       3) 전체 파싱
+    ---------------------------------------------------- */
+    try{
+      if(root){
+        const h = root.headers || {};
+        const pick = key=>{
+          const v = h[key];
+          if(!v) return "";
+          if(Array.isArray(v)){
+            if(typeof v[0]==="string") return v[0];
+            if(typeof v[0].value==="string") return v[0].value;
+          }
+          return "";
+        };
+  
+        const sj = pick("subject");
+        const fr = pick("from");
+        const tr = pick("to");
+        const cr = pick("cc");
+        const dr = pick("date");
+  
+        if(sj) subject = decodeMimeWord(sj);
+        if(fr) fromRaw = fr;
+        if(tr) toRaw   = tr;
+        if(cr) ccRaw   = cr;
+        if(dr){
+          const d2 = new Date(dr);
+          if(!isNaN(d2)) dateObj = d2;
+        }
+  
+        const plains = [];
+        collectPlain(root, plains);
+  
+        if(plains.length){
+          plains.sort((a,b)=>b.length - a.length);
+          bodyText = plains[0];
+        }else{
+          bodyText = bodyFallback; // 마지막 fallback
+        }
       }else{
         bodyText = bodyFallback;
       }
-
+  
     }catch(e){
-      console.warn("emailjs-mime-parser 실패 → fallback 본문 사용:", e);
+      console.warn("MIME 파싱 실패", e);
       bodyText = bodyFallback;
     }
-
-    // 혹시 남은 base64 인코딩 텍스트가 있으면 한번 더 디코딩 시도
-    bodyText = tryDecodeBase64(bodyText);
-
-    // MIME boundary/헤더 제거 + 지난 메일 내용 컷 + QP/HTML 정리
+  
+    /* ----------------------------------------------------
+       4) 마지막 cleanup 처리
+    ---------------------------------------------------- */
     bodyText = cleanupBody(bodyText);
-
+  
     const fromList = parseAddressList(fromRaw);
     const toList   = parseAddressList(toRaw);
     const ccList   = parseAddressList(ccRaw);
-
+  
     return {
       sourceType:"eml",
       filename,
@@ -610,9 +735,11 @@ function parseMime(raw) {
       dateStr,
       dateObj,
       preview: makePreview(bodyText),
-      threadKey: normalizeSubject(subject)
+      threadKey: normalizeSubject(subject),
+      attachments   // ⬅ 이미지 포함
     };
   }
+
 
   /* --------------------------
      케이스 데이터 구조
