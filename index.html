@@ -283,41 +283,44 @@
   function cleanupPlainText(body){
     if(!body) return "";
   
-    let out = body;
+    let out = body.replace(/\r\n/g, "\n");
   
-    // =XX (quoted-printable soft wrap 제거)
-    out = out.replace(/=\r?\n/g, "");
+    out = out
+      .split("\n")
+      .filter(line => {
+        const t = line.trim();
   
-    // MIME boundary 제거
-    out = out.replace(/^--[A-Za-z0-9\/+_=.-]+$/gm, "");
+        // ① MIME boundary 완전 제거
+        if(/^--?[_A-Za-z0-9\-=]+$/i.test(t)) return false;
   
-    // Content-* 헤더 제거
-    out = out.replace(/^content-[^\n]+\n?/gim, "");
-    out = out.replace(/^mime-version:[^\n]+/gim, "");
+        // ② Content-* 헤더 제거
+        if(/^content-(type|transfer-encoding|id|disposition)/i.test(t)) return false;
   
-    // HTML 태그 제거
-    out = out.replace(/<[^>]+>/g, "");
+        // ③ MIME-Version 제거
+        if(/^mime-version:/i.test(t)) return false;
   
-    // Outlook NOTE 배너 제거
-    out = out.replace(/^-{5,}[\s\S]*?^-{5,}$/gm, "");
+        // ④ Outlook NOTE 배너 제거
+        if(/NOTE: This email was received from an external source/i.test(t)) return false;
   
-    // ===== 이전 메일 스레드 제거 =====
-    out = out.split(/[\r\n]+From:/i)[0];
-    out = out.split(/[\r\n]+-----Original Message-----/i)[0];
-    out = out.split(/[\r\n]+보낸 사람:/i)[0];
-    out = out.split(/[\r\n]+보낸:\s/i)[0];
-    out = out.split(/[\r\n]+Sent:/i)[0];
+        // ⑤ 과거 이메일 reply header 제거 (From:, To:, Sent:, Subject:)
+        if(/^(from|to|sent|subject):/i.test(t)) return false;
   
-    // HTML 엔티티 정리
-    out = out.replace(/&nbsp;/gi," ");
-    out = out.replace(/&lt;/gi,"<");
-    out = out.replace(/&gt;/gi,">");
-    out = out.replace(/&amp;/gi,"&");
+        return true;
+      })
+      .join("\n");
   
-    // 반복 공백 정리
-    out = out.replace(/\n{3,}/g,"\n\n");
+    // ⑥ Quoted-printable soft break 제거
+    out = out.replace(/=\n/g, "");
   
-    // 앞뒤 공백 제거
+    // ⑦ Quoted-printable =XX decode
+    out = out.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
+      try { return String.fromCharCode(parseInt(hex,16)); }
+      catch (e){ return m; }
+    });
+  
+    // ⑧ 연속 빈 줄 정리
+    out = out.replace(/\n{3,}/g, "\n\n");
+  
     return out.trim();
   }
 
