@@ -306,248 +306,248 @@
      → "실제 메일 내용" 텍스트만 추출
   -------------------------- */
   function parseEml(rawEml) {
-  // ===== 공통 유틸 =====
-  function normalizeNewlines(str) {
-    return str.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  }
-
-  function mapCharset(cs) {
-    if (!cs) return "utf-8";
-    cs = cs.toLowerCase().trim();
-    if (cs === "ks_c_5601-1987" || cs === "ks_c_5601" || cs === "cp949") {
-      return "euc-kr";
+    // ===== 공통 유틸 =====
+    function normalizeNewlines(str) {
+      return str.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     }
-    return cs;
-  }
-
-  function decodeBytesToString(bytes, charset) {
-    charset = mapCharset(charset);
-    try {
-      return new TextDecoder(charset).decode(bytes);
-    } catch (e) {
-      // 지원 안 되는 charset이면 UTF-8로라도 복구
+  
+    function mapCharset(cs) {
+      if (!cs) return "utf-8";
+      cs = cs.toLowerCase().trim();
+      if (cs === "ks_c_5601-1987" || cs === "ks_c_5601" || cs === "cp949") {
+        return "euc-kr";
+      }
+      return cs;
+    }
+  
+    function decodeBytesToString(bytes, charset) {
+      charset = mapCharset(charset);
       try {
-        return new TextDecoder("utf-8").decode(bytes);
-      } catch (e2) {
-        // 진짜 안 되면 대충 ASCII로
-        return String.fromCharCode.apply(null, Array.from(bytes));
-      }
-    }
-  }
-
-  // ===== 헤더 파싱 (folded header 포함) =====
-  function parseHeaders(headerText) {
-    const headers = {};
-    const lines = headerText.split("\n");
-    let currentName = null;
-    let currentValue = "";
-
-    for (let line of lines) {
-      if (/^\s/.test(line) && currentName) {
-        // 이어지는 줄
-        currentValue += " " + line.trim();
-      } else {
-        if (currentName) {
-          headers[currentName.toLowerCase()] = currentValue.trim();
-        }
-        const idx = line.indexOf(":");
-        if (idx !== -1) {
-          currentName = line.substring(0, idx).trim();
-          currentValue = line.substring(idx + 1).trim();
-        } else {
-          currentName = null;
-          currentValue = "";
-        }
-      }
-    }
-    if (currentName) {
-      headers[currentName.toLowerCase()] = currentValue.trim();
-    }
-    return headers;
-  }
-
-  // ===== Content-Type 파싱 (mimeType / charset / boundary) =====
-  function parseContentType(value) {
-    let mimeType = "text/plain";
-    let charset = "utf-8";
-    let boundary = null;
-
-    if (!value) {
-      return { mimeType, charset, boundary };
-    }
-
-    const raw = value;
-    const parts = raw.split(";");
-    if (parts[0]) {
-      mimeType = parts[0].trim().toLowerCase();
-    }
-
-    // charset은 여러 번 나올 수 있어, 마지막 것을 우선
-    const charsetMatches = raw.match(/charset\s*=\s*"?([^";]+)/gi);
-    if (charsetMatches && charsetMatches.length > 0) {
-      const last = charsetMatches[charsetMatches.length - 1];
-      const m = /charset\s*=\s*"?([^";]+)/i.exec(last);
-      if (m && m[1]) {
-        charset = m[1].trim();
-      }
-    }
-
-    const boundaryMatch = raw.match(/boundary\s*=\s*"?([^";]+)/i);
-    if (boundaryMatch && boundaryMatch[1]) {
-      boundary = boundaryMatch[1].trim();
-    }
-
-    return {
-      mimeType: mimeType || "text/plain",
-      charset: charset || "utf-8",
-      boundary,
-    };
-  }
-
-  // ===== Content-Transfer-Encoding 디코딩 =====
-  function decodeBase64(body, charset) {
-    const cleaned = body.replace(/\s+/g, "");
-    if (!cleaned) return "";
-    let binary;
-    try {
-      binary = atob(cleaned);
-    } catch (e) {
-      return body; // 실패하면 원문 반환
-    }
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-      bytes[i] = binary.charCodeAt(i) & 0xff;
-    }
-    return decodeBytesToString(bytes, charset);
-  }
-
-  function decodeQuotedPrintable(body, charset) {
-    // soft line breaks 제거
-    let str = body.replace(/=\n/g, "").replace(/=\r\n/g, "");
-    const bytes = [];
-    for (let i = 0; i < str.length; i++) {
-      const ch = str[i];
-      if (ch === "=" && i + 2 < str.length && /[0-9A-Fa-f]{2}/.test(str.substr(i + 1, 2))) {
-        const hex = str.substr(i + 1, 2);
-        bytes.push(parseInt(hex, 16));
-        i += 2;
-      } else {
-        bytes.push(ch.charCodeAt(0) & 0xff);
-      }
-    }
-    return decodeBytesToString(new Uint8Array(bytes), charset);
-  }
-
-  function decodeTransfer(body, cte, charset, mimeType) {
-    cte = (cte || "").toLowerCase();
-    let decoded;
-
-    if (cte === "base64") {
-      decoded = decodeBase64(body, charset);
-    } else if (cte === "quoted-printable") {
-      decoded = decodeQuotedPrintable(body, charset);
-    } else {
-      // 7bit / 8bit / binary 등 : 이미 ASCII 위주라고 가정
-      const bytes = new Uint8Array(body.split("").map(c => c.charCodeAt(0) & 0xff));
-      decoded = decodeBytesToString(bytes, charset);
-    }
-
-    return decoded;
-  }
-
-  // ===== text/html → 순수 텍스트 =====
-  function htmlToText(html) {
-    if (!html) return "";
-    // Word/Office 전용 XML, 스타일, 코멘트 제거 (대부분 브라우저에서 자동 무시되지만 한번 더)
-    html = html
-      .replace(/<style[\s\S]*?<\/style>/gi, "")
-      .replace(/<script[\s\S]*?<\/script>/gi, "")
-      .replace(/<xml[\s\S]*?<\/xml>/gi, "")
-      .replace(/<!--[\s\S]*?-->/g, "");
-
-    const div = document.createElement("div");
-    div.innerHTML = html;
-    let text = div.innerText || div.textContent || "";
-
-    // 줄바꿈 정리
-    text = text
-      .replace(/\r/g, "\n")
-      .replace(/\n[ \t]+\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .trim();
-
-    return text;
-  }
-
-  // ===== MIME 인코딩 된 헤더 (=?charset?B?...?=) 디코딩 =====
-  function decodeMimeHeader(value) {
-    if (!value) return "";
-    const regex = /=\?([^?]+)\?([bqBQ])\?([^?]*)\?=/g;
-
-    return value.replace(regex, (match, charset, enc, text) => {
-      charset = charset || "utf-8";
-      enc = (enc || "B").toUpperCase();
-
-      if (enc === "B") {
-        // Base64
-        const cleaned = text.replace(/\s+/g, "");
-        let binary;
+        return new TextDecoder(charset).decode(bytes);
+      } catch (e) {
+        // 지원 안 되는 charset이면 UTF-8로라도 복구
         try {
-          binary = atob(cleaned);
-        } catch (e) {
-          return text;
+          return new TextDecoder("utf-8").decode(bytes);
+        } catch (e2) {
+          // 진짜 안 되면 대충 ASCII로
+          return String.fromCharCode.apply(null, Array.from(bytes));
         }
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i) & 0xff;
-        }
-        return decodeBytesToString(bytes, charset);
-      } else {
-        // Q-encoding
-        let s = text.replace(/_/g, " ");
-        const bytes = [];
-        for (let i = 0; i < s.length; i++) {
-          const ch = s[i];
-          if (ch === "=" && i + 2 < s.length && /[0-9A-Fa-f]{2}/.test(s.substr(i + 1, 2))) {
-            const hex = s.substr(i + 1, 2);
-            bytes.push(parseInt(hex, 16));
-            i += 2;
+      }
+    }
+  
+    // ===== 헤더 파싱 (folded header 포함) =====
+    function parseHeaders(headerText) {
+      const headers = {};
+      const lines = headerText.split("\n");
+      let currentName = null;
+      let currentValue = "";
+  
+      for (let line of lines) {
+        if (/^\s/.test(line) && currentName) {
+          // 이어지는 줄
+          currentValue += " " + line.trim();
+        } else {
+          if (currentName) {
+            headers[currentName.toLowerCase()] = currentValue.trim();
+          }
+          const idx = line.indexOf(":");
+          if (idx !== -1) {
+            currentName = line.substring(0, idx).trim();
+            currentValue = line.substring(idx + 1).trim();
           } else {
-            bytes.push(s.charCodeAt(i) & 0xff);
+            currentName = null;
+            currentValue = "";
           }
         }
-        return decodeBytesToString(new Uint8Array(bytes), charset);
       }
-    });
-  }
-
-  // ===== 단일 파트 디코딩 =====
-  function decodeSinglePart(headers, bodyText, defaultMime, defaultCharset) {
-    const ctHeader = headers["content-type"] || "";
-    const { mimeType, charset } = parseContentType(ctHeader || defaultMime || "text/plain");
-    const effectiveCharset = charset || defaultCharset || "utf-8";
-    const cte = headers["content-transfer-encoding"] || "";
-
-    const decoded = decodeTransfer(bodyText, cte, effectiveCharset, mimeType);
-    let text = decoded;
-    let rawHtml = null;
-
-    if (mimeType.indexOf("text/html") === 0) {
-      rawHtml = decoded;
-      text = htmlToText(decoded);
+      if (currentName) {
+        headers[currentName.toLowerCase()] = currentValue.trim();
+      }
+      return headers;
     }
-
-    return {
-      headers,
-      mimeType,
-      charset: mapCharset(effectiveCharset),
-      text,
-      rawHtml,
-      raw: decoded,
-      multipart: false,
-      children: [],
-    };
+  
+    // ===== Content-Type 파싱 (mimeType / charset / boundary) =====
+    function parseContentType(value) {
+      let mimeType = "text/plain";
+      let charset = "utf-8";
+      let boundary = null;
+  
+      if (!value) {
+        return { mimeType, charset, boundary };
+      }
+  
+      const raw = value;
+      const parts = raw.split(";");
+      if (parts[0]) {
+        mimeType = parts[0].trim().toLowerCase();
+      }
+  
+      // charset은 여러 번 나올 수 있어, 마지막 것을 우선
+      const charsetMatches = raw.match(/charset\s*=\s*"?([^";]+)/gi);
+      if (charsetMatches && charsetMatches.length > 0) {
+        const last = charsetMatches[charsetMatches.length - 1];
+        const m = /charset\s*=\s*"?([^";]+)/i.exec(last);
+        if (m && m[1]) {
+          charset = m[1].trim();
+        }
+      }
+  
+      const boundaryMatch = raw.match(/boundary\s*=\s*"?([^";]+)/i);
+      if (boundaryMatch && boundaryMatch[1]) {
+        boundary = boundaryMatch[1].trim();
+      }
+  
+      return {
+        mimeType: mimeType || "text/plain",
+        charset: charset || "utf-8",
+        boundary,
+      };
+    }
+  
+    // ===== Content-Transfer-Encoding 디코딩 =====
+    function decodeBase64(body, charset) {
+      const cleaned = body.replace(/\s+/g, "");
+      if (!cleaned) return "";
+      let binary;
+      try {
+        binary = atob(cleaned);
+      } catch (e) {
+        return body; // 실패하면 원문 반환
+      }
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binary.charCodeAt(i) & 0xff;
+      }
+      return decodeBytesToString(bytes, charset);
+    }
+  
+    function decodeQuotedPrintable(body, charset) {
+      // soft line breaks 제거
+      let str = body.replace(/=\n/g, "").replace(/=\r\n/g, "");
+      const bytes = [];
+      for (let i = 0; i < str.length; i++) {
+        const ch = str[i];
+        if (ch === "=" && i + 2 < str.length && /[0-9A-Fa-f]{2}/.test(str.substr(i + 1, 2))) {
+          const hex = str.substr(i + 1, 2);
+          bytes.push(parseInt(hex, 16));
+          i += 2;
+        } else {
+          bytes.push(ch.charCodeAt(0) & 0xff);
+        }
+      }
+      return decodeBytesToString(new Uint8Array(bytes), charset);
+    }
+  
+    function decodeTransfer(body, cte, charset, mimeType) {
+      cte = (cte || "").toLowerCase();
+      let decoded;
+  
+      if (cte === "base64") {
+        decoded = decodeBase64(body, charset);
+      } else if (cte === "quoted-printable") {
+        decoded = decodeQuotedPrintable(body, charset);
+      } else {
+        // 7bit / 8bit / binary 등 : 이미 ASCII 위주라고 가정
+        const bytes = new Uint8Array(body.split("").map(c => c.charCodeAt(0) & 0xff));
+        decoded = decodeBytesToString(bytes, charset);
+      }
+  
+      return decoded;
+    }
+  
+    // ===== text/html → 순수 텍스트 =====
+    function htmlToText(html) {
+      if (!html) return "";
+      // Word/Office 전용 XML, 스타일, 코멘트 제거 (대부분 브라우저에서 자동 무시되지만 한번 더)
+      html = html
+        .replace(/<style[\s\S]*?<\/style>/gi, "")
+        .replace(/<script[\s\S]*?<\/script>/gi, "")
+        .replace(/<xml[\s\S]*?<\/xml>/gi, "")
+        .replace(/<!--[\s\S]*?-->/g, "");
+  
+      const div = document.createElement("div");
+      div.innerHTML = html;
+      let text = div.innerText || div.textContent || "";
+  
+      // 줄바꿈 정리
+      text = text
+        .replace(/\r/g, "\n")
+        .replace(/\n[ \t]+\n/g, "\n")
+        .replace(/\n{3,}/g, "\n\n")
+        .trim();
+  
+      return text;
+    }
+  
+    // ===== MIME 인코딩 된 헤더 (=?charset?B?...?=) 디코딩 =====
+    function decodeMimeHeader(value) {
+      if (!value) return "";
+      const regex = /=\?([^?]+)\?([bqBQ])\?([^?]*)\?=/g;
+  
+      return value.replace(regex, (match, charset, enc, text) => {
+        charset = charset || "utf-8";
+        enc = (enc || "B").toUpperCase();
+  
+        if (enc === "B") {
+          // Base64
+          const cleaned = text.replace(/\s+/g, "");
+          let binary;
+          try {
+            binary = atob(cleaned);
+          } catch (e) {
+            return text;
+          }
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i) & 0xff;
+          }
+          return decodeBytesToString(bytes, charset);
+        } else {
+          // Q-encoding
+          let s = text.replace(/_/g, " ");
+          const bytes = [];
+          for (let i = 0; i < s.length; i++) {
+            const ch = s[i];
+            if (ch === "=" && i + 2 < s.length && /[0-9A-Fa-f]{2}/.test(s.substr(i + 1, 2))) {
+              const hex = s.substr(i + 1, 2);
+              bytes.push(parseInt(hex, 16));
+              i += 2;
+            } else {
+              bytes.push(s.charCodeAt(i) & 0xff);
+            }
+          }
+          return decodeBytesToString(new Uint8Array(bytes), charset);
+        }
+      });
+    }
+  
+    // ===== 단일 파트 디코딩 =====
+    function decodeSinglePart(headers, bodyText, defaultMime, defaultCharset) {
+      const ctHeader = headers["content-type"] || "";
+      const { mimeType, charset } = parseContentType(ctHeader || defaultMime || "text/plain");
+      const effectiveCharset = charset || defaultCharset || "utf-8";
+      const cte = headers["content-transfer-encoding"] || "";
+  
+      const decoded = decodeTransfer(bodyText, cte, effectiveCharset, mimeType);
+      let text = decoded;
+      let rawHtml = null;
+  
+      if (mimeType.indexOf("text/html") === 0) {
+        rawHtml = decoded;
+        text = htmlToText(decoded);
+      }
+  
+      return {
+        headers,
+        mimeType,
+        charset: mapCharset(effectiveCharset),
+        text,
+        rawHtml,
+        raw: decoded,
+        multipart: false,
+        children: [],
+      };
   }
 
   // ===== multipart 파트 파싱 =====
@@ -616,6 +616,35 @@
 
     return nodes;
   }
+
+  // ===== 지난 메일 내용 제거 =====
+  function stripReply(body){
+    if(!body) return body;
+  
+    const patterns = [
+      /^-----Original Message-----/i,
+      /^----- Forwarded by/i,
+      /^On .* wrote:$/i,
+      /^보낸 사람:/i,
+      /^받는 사람:/i,
+      /^참조:/i,
+      /^발신:/i
+    ];
+  
+    const lines = body.split(/\r?\n/);
+    let clean = [];
+  
+    for(let i=0;i<lines.length;i++){
+      let stop = patterns.some(p => p.test(lines[i]));
+      if(stop) break;      // 여기서부터 아래는 제거
+      clean.push(lines[i]);
+    }
+    return clean.join("\n").trim();
+  }
+  
+  // parseEml 마지막 return 직전:
+  body = stripReply(body);
+
 
   // ===== 실제 EML 파싱 시작 =====
   if (!rawEml) {
@@ -839,55 +868,64 @@
       const th=threads.find(x=>x.threadKey===currentThreadKey);
       list=th?th.items:[];
     }
-
+  
     const kw = document.getElementById("searchInput").value.toLowerCase().trim();
     if(kw){
       list = list.filter(m=>(m.subject+m.body+m.from+m.to).toLowerCase().includes(kw));
     }
-
-    document.getElementById("viewInfo").textContent =
-      `${currentView==="timeline"?"전체 타임라인":"스레드 보기"} (${list.length}통)`;
-
-    const sumEl=document.getElementById("summaryContainer");
-    sumEl.innerHTML="";
-    if(currentView==="thread" && list.length){
-      let s="";
-      const first=list[0].dateObj,last=list[list.length-1].dateObj;
-      s += `기간: ${fmtDate(first)} ~ ${fmtDate(last)}\n`;
-      s += `메일 수: ${list.length}\n\n흐름:\n`;
-      list.forEach((m,i)=>{s+=`[${i+1}] ${m.preview}\n`;});
-      sumEl.innerHTML=`<div class="summary-card">${esc(s)}</div>`;
+  
+    // ================================
+    // ① 최초 이메일 제목 1회만 표시
+    // ================================
+    const viewInfo = document.getElementById("viewInfo");
+    if(list.length > 0){
+      viewInfo.innerHTML = `
+        <div style="font-size:16px;font-weight:600;margin-bottom:10px;padding:6px 0;">
+          ${esc(list[0].subject)}
+        </div>
+        <div style="font-size:12px;color:#555;">${currentView==="timeline"?"전체 타임라인":"스레드"}</div>
+      `;
+    } else {
+      viewInfo.innerHTML = "";
     }
-
+  
     const mc=document.getElementById("mailContainer");
     mc.innerHTML="";
+  
+    // ================================
+    // 메일 카드 반복
+    // ================================
     list.forEach((m,i)=>{
       const d=document.createElement("div");
       d.className="mail-card";
+  
+      // 제목 제거 — 날짜 + From/To만 표시
       d.innerHTML=`
         <div class="mail-header">
-          <div>
-            <div class="mail-subject">${esc(m.subject)}</div>
-            <div class="mail-meta">
-              From: ${esc(m.from)}<br>
-              To: ${esc(m.to)}
-            </div>
+          <div class="mail-meta">
+            From: ${esc(m.from)}<br>
+            To: ${esc(m.to)}
           </div>
           <div class="mail-date">${esc(fmtDate(m.dateObj))}</div>
         </div>
+  
         <div class="mail-body-preview">
           ${esc(m.preview)} <span class="clickable" id="toggle_${i}">더보기</span>
         </div>
+  
         <div class="mail-body-full" id="full_${i}">${esc(m.body)}</div>
+  
         <div style="margin-top:6px">
           <span class="pill">${esc(m.filename)}</span>
           <span class="pill">EML</span>
         </div>
       `;
+  
       mc.appendChild(d);
-
+  
       const toggle = document.getElementById(`toggle_${i}`);
       const full   = document.getElementById(`full_${i}`);
+  
       toggle.onclick=()=>{
         const show = full.style.display==="block";
         full.style.display = show?"none":"block";
@@ -895,6 +933,7 @@
       };
     });
   }
+
 
   /* --------------------------
      케이스 불러오기 / 생성
