@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (EML 전용 · emailjs-mime-parser)</title>
+  <title>333322221111Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -33,7 +33,6 @@
       box-shadow:0 2px 6px rgba(0,0,0,.08);font-size:12px;
     }
     .content{flex:1;height:calc(100vh - 70px);overflow:auto}
-
     .section-title{font-weight:600;font-size:13px;margin:8px 0}
     .small-btn{
       padding:6px 8px;border-radius:8px;border:1px solid #d1d5db;font-size:12px;
@@ -43,51 +42,38 @@
     .case-item{padding:6px;border-radius:8px;cursor:pointer;margin-bottom:4px}
     .case-item:hover{background:#e5e7eb}
     .case-item.active{background:#0f766e;color:#fff}
-
     #dropZone{
       border:2px dashed #9ca3af;background:#fff;padding:30px;
       border-radius:12px;text-align:center;font-size:13px;color:#6b7280;margin-bottom:12px
     }
     #dropZone.dragover{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
-
     .controls-row{display:flex;gap:8px;margin-bottom:10px}
     .search-input{
       flex:1;padding:6px 12px;border-radius:999px;border:1px solid #d1d5db;font-size:13px
     }
-
     .toggle-group{display:flex;gap:6px;margin:10px 0}
     .toggle-btn{
       flex:1;padding:6px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-size:12px
     }
     .toggle-btn.active{background:#1e40af;color:#fff;border-color:#1e40af}
-
     .thread-item{padding:6px;border-radius:8px;margin-bottom:4px;cursor:pointer}
     .thread-item:hover{background:#f3f4f6}
     .thread-item.active{background:#1d4ed8;color:#fff}
-
+    .summary-card{
+      background:#fefce8;border:1px solid #facc15;padding:10px;border-radius:12px;
+      font-size:12px;white-space:pre-wrap;margin-bottom:12px
+    }
     .mail-card{
       background:#fff;border-radius:12px;padding:12px;margin-bottom:12px;
       box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:3px solid #e5e7eb;font-size:12px
     }
-
     .mail-header{display:flex;justify-content:space-between;margin-bottom:6px;gap:8px}
     .mail-meta{font-size:12px;color:#6b7280}
     .mail-date{font-size:12px;color:#374151;white-space:nowrap}
     .clickable{color:#2563eb;cursor:pointer;text-decoration:underline dotted;font-size:12px}
     .mail-body-preview{white-space:pre-wrap;margin-top:4px;color:#374151}
     .mail-body-full{display:none;border-top:1px dashed #ddd;padding-top:6px;margin-top:6px;white-space:pre-wrap}
-
     .pill{display:inline-block;padding:2px 6px;border-radius:999px;background:#f3f4f6;margin-right:4px;font-size:11px}
-
-    /* attachment */
-    .attachment-box{
-      background:#f9fafb;border:1px solid #e5e7eb;padding:8px 10px;border-radius:8px;
-      margin-top:10px;font-size:11px
-    }
-    .attachment-img{
-      max-width:200px;border-radius:4px;border:1px solid #ddd;margin-top:6px
-    }
-
     @media(max-width:900px){
       main{flex-direction:column}
       .sidebar{width:100%;height:auto}
@@ -100,7 +86,7 @@
 <header>
   <div>
     <div class="title">Outlook 케이스 타임라인 분석기</div>
-    <div class="subtitle">EML 전용 · emailjs-mime-parser 기반</div>
+    <div class="subtitle">EML 전용 · emailjs-mime-parser 기반 · GitHub JSON 저장 · 텍스트 뷰어</div>
   </div>
   <div class="file-box">
     <span>📎 EML 파일 선택</span>
@@ -109,7 +95,6 @@
 </header>
 
 <main>
-
   <!-- 사이드바 -->
   <aside class="sidebar">
     <div class="section-title">GitHub 설정</div>
@@ -139,6 +124,7 @@
     <div class="section-title">스레드 목록</div>
     <div id="threadList"></div>
   </aside>
+
   <!-- 본문 -->
   <section class="content">
 
@@ -163,15 +149,13 @@
 <script type="module">
   import { MimeParser } from "https://esm.run/emailjs-mime-parser@2.0.6";
 
-  /* --------------------------
-     MIME 파서 래퍼
-  -------------------------- */
-  function parseMime(raw) {
-    const parser = new MimeParser();
-    parser.write(raw);
-    parser.end();
-    return parser.node;
-  }
+function parseMime(raw) {
+  const parser = new MimeParser();
+  parser.write(raw);
+  parser.end();
+  return parser.node;
+}
+
 
   /* --------------------------
      GitHub 저장소 설정
@@ -233,7 +217,7 @@
   }
 
   /* --------------------------
-     공용 유틸
+     포맷터 / 유틸
   -------------------------- */
   function normalizeSubject(s){
     if(!s) return "(no-subject)";
@@ -260,21 +244,25 @@
   }
 
   /* --------------------------
-     Encoded-Word 디코더
+     Encoded-Word 디코더 (RFC 2047)
   -------------------------- */
   function decodeMimeWord(str){
     if(!str) return "";
+
     return str.replace(/=\?([^?]+)\?([BbQq])\?([^?]+)\?=/g,
       (m, charset, enc, text) => {
         try{
           charset = charset.toLowerCase();
-          if(charset.includes("ks_c_5601")) charset = "euc-kr";
+          if(charset.includes("ks_c_5601") || charset.includes("ks-c-5601")){
+            charset = "euc-kr";
+          }
 
           if(enc.toUpperCase()==="B"){
             const bin = atob(text.replace(/\s+/g,""));
             const bytes = Uint8Array.from([...bin].map(c=>c.charCodeAt(0)));
             return new TextDecoder(charset).decode(bytes);
           }
+
           if(enc.toUpperCase()==="Q"){
             let qp = text.replace(/_/g," ");
             qp = qp.replace(/=([0-9A-Fa-f]{2})/g,(m,hex)=>String.fromCharCode(parseInt(hex,16)));
@@ -295,6 +283,7 @@
   function parseAddressList(raw){
     if(!raw) return [];
     raw = decodeMimeWord(raw);
+
     const parts = raw.split(/,(?![^\<]*\>)/g).map(s=>s.trim()).filter(Boolean);
 
     return parts.map(p=>{
@@ -309,149 +298,207 @@
   function renderAddressList(list){
     if(!list || !list.length) return "";
     return list
-      .map(x=> x.name ? `${x.name} <${x.email}>` : x.email)
+      .map(x=>{
+        if(x.name) return `${x.name} <${x.email}>`;
+        return x.email;
+      })
       .join(", ");
   }
 
   /* --------------------------
-     Base64 판별
+     base64 형태인지 간단히 판별
   -------------------------- */
   function looksLikeBase64(str){
     if(!str) return false;
     const s = str.replace(/\s+/g,"");
-    if(s.length < 30) return false;
+    if(s.length < 40) return false;
     if(/[^A-Za-z0-9+/=]/.test(s)) return false;
+    // 너무 많은 '='가 있으면 이상하니 대략 필터
+    const eq = (s.match(/=/g)||[]).length;
+    if(eq > s.length/2) return false;
     return true;
   }
 
   /* --------------------------
-     첨부파일 파싱 (이미지 가능)
+     MIME 본문 디코딩 (Content-Transfer-Encoding 반영)
   -------------------------- */
-  function extractAttachments(root){
-    const output = [];
-
-    function walk(node){
-      if(!node) return;
-
-      const ct = node.contentType;
-      const disp = node.disposition;
-
-      // 파일 첨부
-      const isAttachment =
-        (disp && disp.type === "attachment") ||
-        (disp && disp.type === "inline" && node.contentId) ||
-        (ct && ct.type && ct.type.startsWith("image"));
-
-      if(isAttachment && node.content){
-        const ctype = `${ct.type}/${ct.subtype}`;
-        const name =
-          (ct.params?.name) ||
-          (disp?.params?.filename) ||
-          node.contentId ||
-          "attachment";
-
-        // base64 디코딩
-        let base64Data = "";
-        if(node.content instanceof Uint8Array){
-          base64Data = btoa(String.fromCharCode(...node.content));
-        } else if (typeof node.content === "string"){
-          if(looksLikeBase64(node.content)){
-            base64Data = node.content.replace(/\s+/g,"");
-          }
-        }
-
-        output.push({
-          name,
-          contentType: ctype,
-          base64: base64Data
-        });
-      }
-
-      if(node.childNodes){
-        node.childNodes.forEach(walk);
-      }
+  function decodeText(node) {
+    if (!node || node.content == null) return "";
+  
+    // 1) charset 추출
+    let charset =
+      (node.charset ||
+        (node.contentType &&
+          node.contentType.params &&
+          node.contentType.params.charset) ||
+        "utf-8"
+      ).toLowerCase();
+  
+    if (charset.includes("ks_c_5601") || charset.includes("ks-c-5601")) {
+      charset = "euc-kr";
     }
-    walk(root);
-    return output;
-  }
-
-  /* --------------------------
-     MIME 본문 디코딩 (Content-Type 우선 base64)
-  -------------------------- */
-  function decodeBodyTextByCT(node){
-    // 이미지/파일은 여기서 본문 취급하지 않음
-    if(!node || !node.contentType) return "";
-    const disp = node.disposition;
-
-    // 본문이 아닌 경우 skip
-    if(disp?.type === "attachment") return "";
-
-    const ct = node.contentType;
-    const ctype = `${ct.type}/${ct.subtype}`.toLowerCase();
-
-    if(node.content instanceof Uint8Array){
-      return new TextDecoder("utf-8").decode(node.content);
+  
+    // 2) transfer-encoding 헤더
+    let encHeader = "";
+    if (typeof node.contentTransferEncoding === "string") {
+      encHeader = node.contentTransferEncoding.toLowerCase();
+    } else if (node.headers && node.headers["content-transfer-encoding"]) {
+      const v = node.headers["content-transfer-encoding"];
+      if (typeof v === "string") encHeader = v.toLowerCase();
+      else if (Array.isArray(v) && typeof v[0] === "string")
+        encHeader = v[0].toLowerCase();
+      else if (Array.isArray(v) && v[0]?.value)
+        encHeader = v[0].value.toLowerCase();
     }
-
-    let raw = typeof node.content === "string" ? node.content : "";
-    if(looksLikeBase64(raw)){
+  
+    // 3) 이미 디코딩된 바이너리(Uint8Array)인 경우
+    //    → base64 재해석하면 안됨!
+    if (node.content instanceof Uint8Array) {
       try {
-        const bin = atob(raw.replace(/\s+/g,""));
-        const bytes = Uint8Array.from([...bin].map(c=>c.charCodeAt(0)));
-        return new TextDecoder(ct.params?.charset || "utf-8").decode(bytes);
-      } catch(e){}
+        return new TextDecoder(charset).decode(node.content);
+      } catch (err) {
+        console.warn("binary decode fail:", err);
+        return new TextDecoder("utf-8").decode(node.content);
+      }
     }
-
+  
+    // 4) 문자열인 경우 raw 추출
+    let raw = "";
+    if (typeof node.content === "string") raw = node.content;
+    else return "";
+  
+    // 5) 문자열이 base64 형태이거나 헤더가 base64이면 base64 디코딩
+    const isB64 = encHeader.includes("base64") || looksLikeBase64(raw);
+  
+    if (isB64) {
+      try {
+        const cleaned = raw.replace(/\s+/g, "");
+        const bin = atob(cleaned);
+        const bytes = Uint8Array.from([...bin].map((c) => c.charCodeAt(0)));
+        return new TextDecoder(charset).decode(bytes);
+      } catch (err) {
+        console.warn("string base64 decode fail:", err);
+        // 실패 시 그대로 raw 반환 (아래 qp 처리 진행)
+      }
+    }
+  
+    // 6) quoted-printable
+    if (encHeader.includes("quoted-printable")) {
+      let qp = raw.replace(/=\r?\n/g, "");
+      qp = qp.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) =>
+        String.fromCharCode(parseInt(hex, 16))
+      );
+      return qp;
+    }
+  
+    // 7) 그 외는 raw 그대로
     return raw;
   }
 
-  /* --------------------------
-     text/plain 우선 수집
-  -------------------------- */
-  function collectTextPlain(root){
-    const arr = [];
 
-    function walk(node){
-      if(!node) return;
-      const ct = node.contentType || {};
-      if(ct.type==="text" && ct.subtype==="plain"){
-        const t = decodeBodyTextByCT(node);
-        if(t && t.trim()) arr.push(t);
-      }
-      if(node.childNodes){
-        node.childNodes.forEach(walk);
-      }
+  /* --------------------------
+     text/plain 재귀 수집
+  -------------------------- */
+  function collectTextPlain(node, arr){
+    if(!node) return;
+
+    const ct = node.contentType || {};
+    const type = (ct.type || "").toLowerCase();
+    const sub  = (ct.subtype || "").toLowerCase();
+
+    if(type==="text" && sub==="plain"){
+      const t = decodeText(node);
+      if(t && t.trim()) arr.push(t);
     }
 
-    walk(root);
-    return arr;
+    if(node.childNodes){
+      for(const c of node.childNodes)
+        collectTextPlain(c, arr);
+    }
   }
 
   /* --------------------------
-     cleanupBody
+     본문 정리 (boundary/헤더/지난 메일 컷 + QP/HTML 처리)
   -------------------------- */
   function cleanupBody(body){
     if(!body) return "";
-    let out = body.replace(/\r\n/g,"\n");
 
-    // soft break
+    let out = body.replace(/\r\n/g,"\n");
+    const linesRaw = out.split("\n");
+    const cleaned = [];
+
+    for(let i=0;i<linesRaw.length;i++){
+      let t = linesRaw[i].trim();
+
+      // multipart 안내문 제거
+      if(/^\s*This is a multi-?part message in MIME format\.?/i.test(t)){
+        continue;
+      }
+
+      // Outlook 특유 boundary/part 라인 제거
+      if(/^=+Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
+      if(/^---=Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
+      if(/^[-_]{3,}=Part/i.test(t)) continue;
+
+      // boundary & MIME 헤더류 제거
+      if(/^[-_]+=*[A-Za-z0-9+/.\-_]+$/i.test(t)) continue;
+      if(/^[-_]+=.*nextpart/i.test(t)) continue;
+      if(/^boundary\s*=/i.test(t)) continue;
+      if(/^charset\s*=/i.test(t)) continue;
+      if(/^content-(type|transfer|id|disposition)/i.test(t)) continue;
+      if(/^mime-version:/i.test(t)) continue;
+
+      // 외부메일 배너
+      if(/NOTE: This email was received from an external source/i.test(t)) continue;
+
+      // 이전 메일 Reply 구간 시작 → 여기서부터는 버림
+      if(/^[-_]{4,}\s*original message/i.test(t)) break;
+      if(/^(from|to|sent|subject):\s/i.test(t)) break;
+      if(/^on .* wrote:$/i.test(t)) break;
+      if(/^_{5,}$/i.test(t)) break;
+
+      cleaned.push(linesRaw[i]);
+    }
+
+    out = cleaned.join("\n");
+
+    // HTML 본문이면 텍스트만 추출
+    let trimmed = out.trim();
+    if(/<html[\s>]/i.test(trimmed)){
+      try{
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(trimmed, "text/html");
+        let text = doc.body ? doc.body.textContent || "" : "";
+        text = text.replace(/\r\n/g,"\n");
+        text = text.replace(/[ \t]+\n/g,"\n");
+        text = text.replace(/\n{3,}/g,"\n\n");
+        return text.trim();
+      }catch(e){
+        // 실패시 아래 QP 처리 계속
+        console.warn("HTML to text 변환 실패:", e);
+      }
+    }
+
+    // soft line break (= + newline)
     out = out.replace(/=\r?\n/g, "");
 
-    // QP decode
-    out = out.replace(/=([0-9A-Fa-f]{2})/g,(m,hex)=>{
-      try { return String.fromCharCode(parseInt(hex,16)); }
+    // =20, =09 등의 QP escape 디코딩
+    out = out.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
+      try { return String.fromCharCode(parseInt(hex, 16)); }
       catch { return m; }
     });
 
+    // 빈 줄 정리
     out = out.replace(/\n{3,}/g,"\n\n");
     return out.trim();
   }
 
   /* --------------------------
-     Base64 fallback
+     Base64 본문 디코딩 (fallback용)
   -------------------------- */
   function tryDecodeBase64(text){
     if(!text) return text;
+
     const trimmed = text.trim();
 
     const isLikely =
@@ -465,108 +512,218 @@
     try{
       const cleaned = trimmed.replace(/\s+/g,"");
       const decoded = atob(cleaned);
+
       if(/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(decoded)) return text;
+
       return decoded;
-    }catch{
+    }catch(e){
       return text;
     }
   }
-
   /* --------------------------
-     **EML 파서 — 첨부파일 + Base64 최우선 디코딩 포함**
+     EML 파서 (핵심)
   -------------------------- */
   function parseEml(raw, filename){
     const parts = raw.split(/\r?\n\r?\n/);
     let headerText = parts[0] || "";
     let bodyFallback = parts.slice(1).join("\n\n") || "";
-
+  
     headerText = headerText.replace(/(\r?\n)(\t| )+/g," ");
-
+  
     function getHeader(name){
       const re = new RegExp("^"+name+"\\s*:\\s*(.+)$","im");
       const m = headerText.match(re);
       return m?m[1].trim():"";
     }
-
+  
     let subject = decodeMimeWord(getHeader("Subject") || "(제목 없음)");
     let fromRaw = getHeader("From");
     let toRaw   = getHeader("To");
     let ccRaw   = getHeader("Cc");
     let dateStr = getHeader("Date");
     let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
-
+  
     let bodyText = "";
-    let attachments = [];
-
-    /* --------------------------
-       MIME 구조 전체 파싱
-    -------------------------- */
+    const attachments = [];
+  
     let root = null;
+  
     try{
       root = parseMime(raw);
-
-      /* 헤더 override */
-      const h = root.headers || {};
-      const pick = key=>{
-        const v = h[key];
-        if(!v) return "";
-        if(Array.isArray(v)){
-          if(typeof v[0]==="string") return v[0];
-          if(typeof v[0].value==="string") return v[0].value;
-        }
-        return "";
-      };
-
-      const sj = pick("subject");
-      const fr = pick("from");
-      const tr = pick("to");
-      const cr = pick("cc");
-      const dr = pick("date");
-
-      if(sj) subject = decodeMimeWord(sj);
-      if(fr) fromRaw = fr;
-      if(tr) toRaw   = tr;
-      if(cr) ccRaw   = cr;
-      if(dr){
-        const dt = new Date(dr);
-        if(!isNaN(dt)) dateObj = dt;
+    }catch(e){
+      console.warn("parseMime 오류 → fallback 사용", e);
+      root = null;
+    }
+  
+    /* ----------------------------------------------------
+       1) base64 우선 디코딩 규칙 적용을 위한 helper
+    ---------------------------------------------------- */
+    function decodeTextWithPriority(node){
+      if(!node) return "";
+  
+      const ct = node.contentType || {};
+      const type = (ct.type||"").toLowerCase();
+      const subtype = (ct.subtype||"").toLowerCase();
+  
+      // 1) charset
+      let charset =
+        (node.charset ||
+         (node.contentType && node.contentType.params && node.contentType.params.charset) ||
+         "utf-8").toLowerCase();
+      if(charset.includes("ks_c_5601") || charset.includes("ks-c-5601"))
+        charset = "euc-kr";
+  
+      // 2) transfer-encoding
+      let encHeader = "";
+      if(typeof node.contentTransferEncoding === "string"){
+        encHeader = node.contentTransferEncoding.toLowerCase();
+      }else if(node.headers && node.headers["content-transfer-encoding"]){
+        const v = node.headers["content-transfer-encoding"];
+        if(typeof v === "string") encHeader = v.toLowerCase();
+        else if(Array.isArray(v) && typeof v[0] === "string") encHeader = v[0].toLowerCase();
+        else if(Array.isArray(v) && v[0]?.value) encHeader = v[0].value.toLowerCase();
       }
-
-      /* text/plain 본문 */
-      const plains = collectTextPlain(root);
-      if(plains.length){
-        plains.sort((a,b)=>b.length - a.length);
-        bodyText = plains[0];
-      } else {
+  
+      /* ----------------------------------------------------
+         **A. 이미지 attachment는 처리 로직이 다름 → 바로 빠져나감**
+      ---------------------------------------------------- */
+      if(type === "image"){
+        let filename = "";
+        if(ct.params?.name) filename = ct.params.name;
+        if(node.content instanceof Uint8Array){
+          attachments.push({
+            filename,
+            contentType: `${type}/${subtype}`,
+            data: node.content
+          });
+        }
+        return ""; // 본문엔 포함 X
+      }
+  
+      /* ----------------------------------------------------
+         **B. 바이너리(Uint8Array)는 이미 디코딩된 상태 → 텍스트 처리**
+      ---------------------------------------------------- */
+      if(node.content instanceof Uint8Array){
+        try{
+          return new TextDecoder(charset).decode(node.content);
+        }catch{
+          return new TextDecoder("utf-8").decode(node.content);
+        }
+      }
+  
+      /* ----------------------------------------------------
+         **C. 문자열(raw) 인 경우 base64 우선 디코딩**
+      ---------------------------------------------------- */
+      let raw = "";
+      if(typeof node.content === "string") raw = node.content;
+      else return "";
+  
+      const looksB64 = encHeader.includes("base64") || looksLikeBase64(raw);
+  
+      if(looksB64){
+        try{
+          const cleaned = raw.replace(/\s+/g,"");
+          const bin = atob(cleaned);
+          const bytes = Uint8Array.from([...bin].map(c=>c.charCodeAt(0)));
+          const decoded = new TextDecoder(charset).decode(bytes);
+  
+          // 바이너리 제어문자 검사
+          if(!/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(decoded)){
+            return decoded;
+          }
+        }catch(e){
+          console.warn("base64 디코딩 실패", e);
+        }
+      }
+  
+      // quoted-printable
+      if(encHeader.includes("quoted-printable")){
+        let qp = raw.replace(/=\r?\n/g,"");
+        qp = qp.replace(/=([0-9A-Fa-f]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)));
+        return qp;
+      }
+  
+      return raw;
+    }
+  
+    /* ----------------------------------------------------
+       2) text/plain 최종 수집 (base64 우선 디코딩 버전)
+    ---------------------------------------------------- */
+    function collectPlain(node, arr){
+      if(!node) return;
+  
+      const ct = node.contentType || {};
+      const type = (ct.type||"").toLowerCase();
+      const subtype = (ct.subtype||"").toLowerCase();
+  
+      if(type==="text" && subtype==="plain"){
+        const t = decodeTextWithPriority(node);
+        if(t && t.trim()) arr.push(t);
+      }
+  
+      if(node.childNodes){
+        for(const c of node.childNodes) collectPlain(c, arr);
+      }
+    }
+  
+    /* ----------------------------------------------------
+       3) 전체 파싱
+    ---------------------------------------------------- */
+    try{
+      if(root){
+        const h = root.headers || {};
+        const pick = key=>{
+          const v = h[key];
+          if(!v) return "";
+          if(Array.isArray(v)){
+            if(typeof v[0]==="string") return v[0];
+            if(typeof v[0].value==="string") return v[0].value;
+          }
+          return "";
+        };
+  
+        const sj = pick("subject");
+        const fr = pick("from");
+        const tr = pick("to");
+        const cr = pick("cc");
+        const dr = pick("date");
+  
+        if(sj) subject = decodeMimeWord(sj);
+        if(fr) fromRaw = fr;
+        if(tr) toRaw   = tr;
+        if(cr) ccRaw   = cr;
+        if(dr){
+          const d2 = new Date(dr);
+          if(!isNaN(d2)) dateObj = d2;
+        }
+  
+        const plains = [];
+        collectPlain(root, plains);
+  
+        if(plains.length){
+          plains.sort((a,b)=>b.length - a.length);
+          bodyText = plains[0];
+        }else{
+          bodyText = bodyFallback; // 마지막 fallback
+        }
+      }else{
         bodyText = bodyFallback;
       }
-
-      /* 첨부파일 수집 */
-      attachments = extractAttachments(root);
-
+  
     }catch(e){
-      console.warn("emailjs-mime-parser 실패 → fallback 본문 사용:", e);
+      console.warn("MIME 파싱 실패", e);
       bodyText = bodyFallback;
-      attachments = [];
     }
-
-    /* --------------------------
-       Base64 fallback
-    -------------------------- */
-    bodyText = tryDecodeBase64(bodyText);
-
-    /* --------------------------
-       cleanup
-    -------------------------- */
+  
+    /* ----------------------------------------------------
+       4) 마지막 cleanup 처리
+    ---------------------------------------------------- */
     bodyText = cleanupBody(bodyText);
-
-    /* --------------------------
-       주소 파싱
-    -------------------------- */
+  
     const fromList = parseAddressList(fromRaw);
     const toList   = parseAddressList(toRaw);
     const ccList   = parseAddressList(ccRaw);
-
+  
     return {
       sourceType:"eml",
       filename,
@@ -579,15 +736,16 @@
       dateObj,
       preview: makePreview(bodyText),
       threadKey: normalizeSubject(subject),
-      attachments
+      attachments   // ⬅ 이미지 포함
     };
   }
 
+
   /* --------------------------
-     케이스 구조
+     케이스 데이터 구조
   -------------------------- */
-  let casesMeta=[];
-  let caseData={};
+  let casesMeta=[];    // [{id,name}]
+  let caseData={};     // id → {id,name,emails}
   let currentCaseId=null;
 
   let allEmails=[];
@@ -596,7 +754,7 @@
   let currentThreadKey=null;
 
   /* --------------------------
-     파일 처리
+     파일 처리 + 드래그드랍
   -------------------------- */
   async function handleFiles(files){
     if(!currentCaseId){
@@ -605,12 +763,16 @@
     }
 
     allEmails = caseData[currentCaseId]?.emails || [];
+
     let remain = files.length;
+    if(!remain) return;
 
     for(const file of files){
       const name = file.name;
-      if(!name.toLowerCase().endsWith(".eml")){
-        alert(name+" : .eml만 가능합니다.");
+      const ext  = name.split(".").pop().toLowerCase();
+
+      if(ext !== "eml"){
+        alert(name + " : 이 버전은 .eml만 지원합니다. (.msg는 사전에 .eml로 변환해주세요)");
         remain--;
         continue;
       }
@@ -622,13 +784,13 @@
           const mail = parseEml(raw, name);
           allEmails.push(mail);
         }catch(e){
-          console.error("파싱 실패:", name, e);
+          console.error("EML 파싱 실패:", name, e);
         }finally{
           remain--;
           if(remain===0){
             caseData[currentCaseId].emails = allEmails;
             postProcess();
-            ghPut(`cases/${currentCaseId}.json`, caseData[currentCaseId],"update case")
+            ghPut(`cases/${currentCaseId}.json`,caseData[currentCaseId],"update case")
               .catch(err=>alert("GitHub 저장 실패: "+err.message));
           }
         }
@@ -638,101 +800,89 @@
   }
 
   /* --------------------------
-     후처리
+     후처리 / 렌더링
   -------------------------- */
   function postProcess(){
     if(!allEmails.length){
-      document.getElementById("mailContainer").innerHTML="";
-      document.getElementById("threadList").innerHTML="";
+      document.getElementById("statsBox").textContent = "메일 없음";
+      document.getElementById("threadList").innerHTML = "";
+      document.getElementById("mailContainer").innerHTML = "";
+      document.getElementById("summaryContainer").innerHTML = "";
+      document.getElementById("viewInfo").textContent = "";
       return;
     }
 
-    // 시간 순 정렬
-    allEmails.sort((a,b)=> (a.dateObj - b.dateObj));
+    allEmails.sort((a,b)=>{
+      const t1 = (a.dateObj instanceof Date && !isNaN(a.dateObj)) ? a.dateObj.getTime() : 0;
+      const t2 = (b.dateObj instanceof Date && !isNaN(b.dateObj)) ? b.dateObj.getTime() : 0;
+      return t1 - t2;
+    });
 
-    // thread grouping
     const map = new Map();
     allEmails.forEach(m=>{
-      const k=m.threadKey;
+      const k=m.threadKey || "(no-subject)";
       if(!map.has(k)) map.set(k,{threadKey:k,subject:m.subject,items:[]});
       map.get(k).items.push(m);
     });
-    threads = [...map.values()];
+    threads=[...map.values()];
 
     updateStats();
     renderThreads();
     renderView();
   }
 
-  /* --------------------------
-     통계
-  -------------------------- */
   function updateStats(){
-    document.getElementById("statsBox").innerHTML =
-      `메일: <b>${allEmails.length}</b>개<br>
-       스레드: <b>${threads.length}</b>개`;
+    const statsBox = document.getElementById("statsBox");
+    statsBox.innerHTML = `메일: <b>${allEmails.length}</b>개<br>스레드: <b>${threads.length}</b>개`;
   }
 
-  /* --------------------------
-     Thread 목록
-  -------------------------- */
   function renderThreads(){
     const el = document.getElementById("threadList");
-    el.innerHTML="";
-
+    el.innerHTML = "";
     threads.forEach(t=>{
       const div=document.createElement("div");
-      div.className="thread-item"+(t.threadKey===currentThreadKey ? " active":"");
+      div.className="thread-item"+(t.threadKey===currentThreadKey?" active":"");
       div.textContent=`${t.subject} (${t.items.length})`;
-
       div.onclick=()=>{
         currentThreadKey=t.threadKey;
         currentView="thread";
         renderView();
         renderThreads();
       };
-
       el.appendChild(div);
     });
   }
 
-  /* --------------------------
-     메일 리스트 렌더링
-  -------------------------- */
   function renderView(){
     let list=[...allEmails];
-
     if(currentView==="thread" && currentThreadKey){
-      const th = threads.find(x=>x.threadKey===currentThreadKey);
-      list = th ? th.items : [];
+      const th=threads.find(x=>x.threadKey===currentThreadKey);
+      list=th?th.items:[];
     }
 
-    const kw=document.getElementById("searchInput").value.toLowerCase();
+    const kw = document.getElementById("searchInput").value.toLowerCase().trim();
     if(kw){
-      list=list.filter(m=>{
+      list = list.filter(m=>{
         const addrStr =
-          renderAddressList(m.from)+
-          renderAddressList(m.to)+
-          renderAddressList(m.cc);
-        return (m.subject+m.body+addrStr).toLowerCase().includes(kw);
+          renderAddressList(m.from) +
+          renderAddressList(m.to) +
+          renderAddressList(m.cc || []);
+        return (m.subject + m.body + addrStr).toLowerCase().includes(kw);
       });
     }
 
-    // 제목 표시
     const viewInfo = document.getElementById("viewInfo");
-    if(list.length){
+    if(list.length > 0){
       viewInfo.innerHTML = `
-        <div style="font-size:16px;font-weight:600;margin-bottom:8px;">
+        <div style="font-size:16px;font-weight:600;margin-bottom:10px;padding:6px 0;">
           ${esc(list[0].subject)}
         </div>
-        <div style="font-size:12px;color:#555;">
-          ${currentView==="timeline"?"전체 타임라인":"스레드 보기"}
-        </div>`;
+        <div style="font-size:12px;color:#555;">${currentView==="timeline"?"전체 타임라인":"스레드"}</div>
+      `;
     } else {
-      viewInfo.innerHTML="";
+      viewInfo.innerHTML = "";
     }
 
-    /* 메일 그리기 */
     const mc=document.getElementById("mailContainer");
     mc.innerHTML="";
 
@@ -740,31 +890,7 @@
       const d=document.createElement("div");
       d.className="mail-card";
 
-      /* 첨부파일 렌더링 */
-      let attachHtml="";
-      if(m.attachments?.length){
-        attachHtml = `
-          <div style="margin-top:6px;">
-            ${m.attachments.map(a=>{
-              if(a.contentType.startsWith("image")){
-                return `
-                  <div style="margin-bottom:6px;">
-                    <div style="font-size:11px;margin-bottom:2px">${esc(a.name)}</div>
-                    <img src="data:${a.contentType};base64,${a.base64}"
-                         style="max-width:200px;border:1px solid #ddd;border-radius:6px;">
-                  </div>`;
-              } else {
-                return `
-                  <div style="font-size:11px;margin-bottom:4px;">
-                    📎 ${esc(a.name)} (${esc(a.contentType)})
-                  </div>`;
-              }
-            }).join("")}
-          </div>
-        `;
-      }
-
-      d.innerHTML = `
+      d.innerHTML=`
         <div class="mail-header">
           <div class="mail-meta">
             From: ${esc(renderAddressList(m.from))}<br>
@@ -779,8 +905,6 @@
 
         <div class="mail-body-full" id="full_${i}">${esc(m.body)}</div>
 
-        ${attachHtml}
-
         <div style="margin-top:6px">
           <span class="pill">${esc(m.filename)}</span>
           <span class="pill">EML</span>
@@ -789,8 +913,8 @@
 
       mc.appendChild(d);
 
-      const toggle=document.getElementById(`toggle_${i}`);
-      const full=document.getElementById(`full_${i}`);
+      const toggle = document.getElementById(`toggle_${i}`);
+      const full   = document.getElementById(`full_${i}`);
 
       toggle.onclick=()=>{
         const show = full.style.display==="block";
@@ -815,9 +939,7 @@
       caseData={};
       currentCaseId=null;
       renderCaseList();
-    }catch(e){
-      alert("케이스 목록 불러오기 실패: "+e.message);
-    }
+    }catch(e){alert("케이스 목록 불러오기 실패: "+e.message);}
   }
 
   function renderCaseList(){
@@ -836,15 +958,13 @@
     currentCaseId=id;
     renderCaseList();
     try{
-      const obj = await ghGet(`cases/${id}.json`);
+      const obj=await ghGet(`cases/${id}.json`);
       if(obj){
         caseData[id]=obj;
         allEmails=obj.emails||[];
         postProcess();
       }
-    }catch(e){
-      alert("케이스 로딩 실패 "+e.message);
-    }
+    }catch(e){alert("케이스 로딩 실패 "+e.message);}
   }
 
   async function addCase(){
@@ -856,8 +976,8 @@
     caseData[id]={id,name,emails:[]};
     currentCaseId=id;
 
-    await ghPut("cases/index.json", casesMeta, "case index update");
-    await ghPut(`cases/${id}.json`, caseData[id], "create case");
+    await ghPut("cases/index.json",casesMeta,"case index update");
+    await ghPut(`cases/${id}.json`,caseData[id],"create case");
 
     renderCaseList();
   }
@@ -865,31 +985,28 @@
   /* --------------------------
      이벤트 바인딩
   -------------------------- */
+  const fileInput   = document.getElementById("fileInput");
+  const dropZone    = document.getElementById("dropZone");
+  const searchInput = document.getElementById("searchInput");
+  const btnTimeline = document.getElementById("btnTimeline");
+  const btnThread   = document.getElementById("btnThread");
+
   document.getElementById("btnSaveGh").onclick=()=>{
-    github.token=document.getElementById("ghToken").value.trim();
+    github.token = document.getElementById("ghToken").value.trim();
     localStorage.setItem("github_token",github.token);
-    alert("저장됨");
+    alert("GitHub 토큰을 저장했습니다.");
   };
   document.getElementById("btnLoadCases").onclick=loadCases;
   document.getElementById("btnAddCase").onclick=addCase;
 
-  const fileInput=document.getElementById("fileInput");
-  const dropZone=document.getElementById("dropZone");
-  const searchInput=document.getElementById("searchInput");
-  const btnTimeline=document.getElementById("btnTimeline");
-  const btnThread=document.getElementById("btnThread");
-
   btnTimeline.onclick=()=>{
     currentView="timeline";currentThreadKey=null;
-    btnTimeline.classList.add("active");
-    btnThread.classList.remove("active");
+    btnTimeline.classList.add("active");btnThread.classList.remove("active");
     renderView();
   };
-
   btnThread.onclick=()=>{
     currentView="thread";
-    btnThread.classList.add("active");
-    btnTimeline.classList.remove("active");
+    btnThread.classList.add("active");btnTimeline.classList.remove("active");
     renderView();
   };
 
@@ -898,7 +1015,7 @@
     searchInput.value="";renderView();
   };
 
-  fileInput.onchange=e=>handleFiles([...e.target.files]);
+  fileInput.onchange=(e)=>handleFiles([...e.target.files]);
 
   window.ondragover=e=>{e.preventDefault();dropZone.classList.add("dragover");};
   window.ondragleave=()=>dropZone.classList.remove("dragover");
