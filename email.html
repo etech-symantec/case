@@ -20,16 +20,39 @@
       box-shadow:0 2px 6px rgba(0,0,0,.2);
     }
     .title{font-size:18px;font-weight:600}
+    .subtitle{font-size:12px;opacity:.9}
     .file-box{
       display:flex;align-items:center;gap:8px;
       background:rgba(255,255,255,.2);padding:6px 12px;
       border-radius:999px;font-size:12px
     }
+    main{display:flex;gap:16px;padding:16px}
+    .sidebar{
+      width:260px;background:#fff;border-radius:12px;padding:12px;
+      height:calc(100vh - 70px);overflow:auto;
+      box-shadow:0 2px 6px rgba(0,0,0,.08);font-size:12px;
+    }
+    .content{flex:1;height:calc(100vh - 70px);overflow:auto}
+    .section-title{font-weight:600;font-size:13px;margin:8px 0}
+    .small-btn{
+      padding:6px 8px;border-radius:8px;border:1px solid #d1d5db;font-size:12px;
+      background:#fff;cursor:pointer;width:100%
+    }
+    .small-btn:hover{background:#f3f4f6}
     #dropZone{
       border:2px dashed #9ca3af;background:#fff;padding:30px;
       border-radius:12px;text-align:center;font-size:13px;color:#6b7280;margin-bottom:12px
     }
     #dropZone.dragover{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
+    .controls-row{display:flex;gap:8px;margin-bottom:10px}
+    .search-input{
+      flex:1;padding:6px 12px;border-radius:999px;border:1px solid #d1d5db;font-size:13px
+    }
+    @media(max-width:900px){
+      main{flex-direction:column}
+      .sidebar{width:100%;height:auto}
+      .content{height:auto}
+    }
   </style>
 </head>
 <body>
@@ -37,6 +60,7 @@
 <header>
   <div>
     <div class="title">Outlook 케이스 타임라인 분석기</div>
+    <div class="subtitle">EML 전용 · Pre-decode Base64 · 텍스트 뷰어</div>
   </div>
   <div class="file-box">
     <span>📎 EML 파일 선택</span>
@@ -45,61 +69,102 @@
 </header>
 
 <main>
-  <section>
+  <aside class="sidebar">
+    <div class="section-title">케이스 관리</div>
+    <button id="btnAddCase" class="small-btn">➕ 새 케이스</button>
+    <div id="caseList" style="margin-top:10px"></div>
+    <hr style="margin:16px 0">
+    <div id="statsBox" style="font-size:12px;line-height:1.5;color:#444">
+      GitHub 토큰 입력 후 케이스 목록을 불러오세요.
+    </div>
+  </aside>
+
+  <section class="content">
     <div id="dropZone">
       이곳에 <b>.eml</b> 파일을 드래그해서 놓으세요
     </div>
-  </section>
-  <section>
-    <div id="fileStatus" style="font-size:14px;color:#374151;margin-top:10px;"></div>
+
+    <div class="controls-row">
+      <input id="searchInput" class="search-input" placeholder="제목 / 본문 / 보낸사람 / 받는사람 검색">
+      <button id="btnClearSearch" class="small-btn">초기화</button>
+    </div>
+
+    <div id="viewInfo" style="font-size:12px;color:#444;margin-bottom:6px"></div>
+    <div id="mailContainer"></div>
   </section>
 </main>
 
 <script type="module">
-  async function handleFiles(files) {
-    if (!files.length) return;
-
-    let remain = files.length;
-
-    for (const file of files) {
-      const name = file.name;
-      const ext = name.split(".").pop().toLowerCase();
-
-      if (ext !== "eml") {
-        alert(name + " : 이 버전은 .eml만 지원합니다.");
-        remain--;
-        continue;
-      }
-
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        try {
-          let raw = ev.target.result;
-          document.getElementById("fileStatus").textContent = `${name} 파일이 성공적으로 업로드되었습니다.`;
-        } catch (e) {
-          console.error("EML 파싱 실패:", name, e);
-          document.getElementById("fileStatus").textContent = `파일 업로드에 실패했습니다: ${name}`;
-        } finally {
-          remain--;
-          if (remain === 0) {
-            document.getElementById("fileStatus").textContent += ` 총 ${files.length}개의 파일 처리 완료.`;
-          }
-        }
-      };
-      reader.readAsText(file, "utf-8");
-    }
+  import MimeParser from "https://esm.run/emailjs-mime-parser@2.0.6";
+  
+  function parseMime(raw) {
+    const parser = new MimeParser();
+    parser.write(raw);
+    parser.end();
+    return parser.node;
   }
 
-  const fileInput = document.getElementById("fileInput");
-  const dropZone = document.getElementById("dropZone");
-  const fileStatus = document.getElementById("fileStatus");
+  function fmtDate(d){
+    if(!(d instanceof Date) || isNaN(d)) return "날짜 없음";
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+  }
 
-  fileInput.onchange = (e) => handleFiles([...e.target.files]);
+  function esc(s){
+    return String(s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+  }
 
-  window.ondragover = (e) => { e.preventDefault(); dropZone.classList.add("dragover"); };
-  window.ondragleave = () => dropZone.classList.remove("dragover");
+  async function handleFiles(files){
+    if(!files.length) return;
+    const file = files[0];
+    if(file.name.split(".").pop().toLowerCase() !== "eml"){
+      alert("EML 파일만 업로드 가능합니다.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try{
+        let raw = ev.target.result;
+        const mail = parseEml(raw, file.name);
+        renderEmail(mail);
+      } catch(e) {
+        console.error("EML 파싱 실패:", e);
+      }
+    };
+    reader.readAsText(file, "utf-8");
+  }
+
+  function renderEmail(mail){
+    const mc = document.getElementById("mailContainer");
+    mc.innerHTML = `
+      <div class="mail-card">
+        <div class="mail-header">
+          <div class="mail-meta">
+            From: ${esc(mail.from.map(f=>f.email).join(", "))}<br>
+            To: ${esc(mail.to.map(t=>t.email).join(", "))}
+          </div>
+          <div class="mail-date">${esc(fmtDate(mail.dateObj))}</div>
+        </div>
+        <div class="mail-body-preview">
+          ${esc(mail.preview)}
+        </div>
+        <div class="mail-body-full">${esc(mail.body)}</div>
+      </div>
+    `;
+  }
+
+  document.getElementById("fileInput").onchange = (e) => handleFiles([...e.target.files]);
+
+  window.ondragover = (e) => { 
+    e.preventDefault(); 
+    document.getElementById("dropZone").classList.add("dragover"); 
+  };
+  
+  window.ondragleave = () => document.getElementById("dropZone").classList.remove("dragover");
+
   window.ondrop = (e) => {
-    e.preventDefault(); dropZone.classList.remove("dragover");
+    e.preventDefault(); 
+    document.getElementById("dropZone").classList.remove("dragover");
     handleFiles([...e.dataTransfer.files]);
   };
 </script>
