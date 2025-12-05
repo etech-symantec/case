@@ -79,6 +79,13 @@
       .sidebar{width:100%;height:auto}
       .content{height:auto}
     }
+
+    img {
+      display: block !important;
+      visibility: visible !important;
+      max-width: 100%; /* 이미지가 너무 크지 않도록 제한 */
+    }
+
   </style>
 </head>
 <body>
@@ -334,19 +341,29 @@
         // 만약 바이너리 데이터로 인식되면 이미지 데이터로 취급
         if (/\0/.test(dec)) {
           // 바이너리 데이터를 기반으로 이미지 형식 추정
+          const imgElement = document.createElement('img');
+          imgElement.setAttribute('alt', 'Image');
+  
           if (/^ÿØÿà/.test(bin)) {
             // JPEG 이미지 (ÿØÿà는 JPEG 파일의 시작 바이트)
-            processed = `<img src="data:image/jpeg;base64,${cleaned}" alt="Image" />`;
+            imgElement.setAttribute('src', `data:image/jpeg;base64,${cleaned}`);
           } else if (/^iVBORw0KGgo/.test(bin)) {
             // PNG 이미지 (iVBORw0KGgo는 PNG 파일의 시작 바이트)
-            processed = `<img src="data:image/png;base64,${cleaned}" alt="Image" />`;
+            imgElement.setAttribute('src', `data:image/png;base64,${cleaned}`);
           } else if (/R0lGODdh/.test(bin)) {
             // GIF 이미지 (R0lGODdh는 GIF 파일의 시작 바이트)
-            processed = `<img src="data:image/gif;base64,${cleaned}" alt="Image" />`;
+            imgElement.setAttribute('src', `data:image/gif;base64,${cleaned}`);
           } else {
             // 알 수 없는 바이너리 데이터인 경우 처리하지 않음
-            processed = `data:application/octet-stream;base64,${cleaned}`;
+            imgElement.setAttribute('src', `data:application/octet-stream;base64,${cleaned}`);
           }
+  
+          // 이미지가 삽입될 컨테이너에 추가 (이 부분을 원하는 DOM 요소로 설정)
+          const imageContainer = document.getElementById('imageContainer');
+          imageContainer.appendChild(imgElement);
+  
+          // 이 부분에서는 텍스트로 반환하지 않고 이미지를 동적으로 생성하므로 processed를 수정하지 않음
+          processed = ''; // Base64 값을 텍스트로 리턴하지 않고, 이미지를 바로 DOM에 삽입
         } else {
           processed = dec; // 텍스트로 디코딩
         }
@@ -367,20 +384,28 @@
   
         // 이미지 데이터로 판단되면 이미지로 처리
         if (/\0/.test(text)) {
-          // 바이너리 데이터를 기반으로 이미지 형식 추정
+          const imgElement = document.createElement('img');
+          imgElement.setAttribute('alt', 'Image');
+  
           if (/^ÿØÿà/.test(bin)) {
             // JPEG 이미지
-            return `<img src="data:image/jpeg;base64,${cleaned}" alt="Image" />`;
+            imgElement.setAttribute('src', `data:image/jpeg;base64,${cleaned}`);
           } else if (/^iVBORw0KGgo/.test(bin)) {
             // PNG 이미지
-            return `<img src="data:image/png;base64,${cleaned}" alt="Image" />`;
+            imgElement.setAttribute('src', `data:image/png;base64,${cleaned}`);
           } else if (/R0lGODdh/.test(bin)) {
             // GIF 이미지
-            return `<img src="data:image/gif;base64,${cleaned}" alt="Image" />`;
+            imgElement.setAttribute('src', `data:image/gif;base64,${cleaned}`);
           } else {
             // 알 수 없는 바이너리 데이터
-            return `data:application/octet-stream;base64,${cleaned}`;
+            imgElement.setAttribute('src', `data:application/octet-stream;base64,${cleaned}`);
           }
+  
+          // 이미지가 삽입될 컨테이너에 추가 (이 부분을 원하는 DOM 요소로 설정)
+          const imageContainer = document.getElementById('imageContainer');
+          imageContainer.appendChild(imgElement);
+  
+          return ''; // 텍스트 대신 이미지를 삽입하여 반환
         }
   
         return text;
@@ -394,6 +419,7 @@
   
     return processed;
   }
+
 
 
   /* --------------------------
