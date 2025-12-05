@@ -319,50 +319,83 @@
       [NEW] 원본 Base64 선처리 (Pre-Decoder)
   -------------------------- */
   function preprocessRawContent(raw) {
-      if(!raw) return "";
-      let processed = raw;
-
-      // 1. 전체가 Base64 덩어리인 경우 (인코딩된 파일 자체일 때)
-      if(looksLikeBase64(processed)){
-        try{
-          const cleaned = processed.replace(/\s+/g,"");
-          const bin = atob(cleaned);
-          const dec = new TextDecoder("utf-8").decode(Uint8Array.from([...bin].map(c=>c.charCodeAt(0))));
-          processed = dec; // 디코딩 성공 시 덮어쓰기
-        }catch(e){
-          console.warn("전체 Base64 디코딩 실패, 원본 유지:", e);
-        }
-      }
-
-      // 2. 부분적 Base64 블록(60자 이상 연속) 강제 디코딩
-      // Regex: 알파벳/숫자/+/= 문자가 60개 이상 연속됨 (줄바꿈 허용)
-      processed = processed.replace(/([A-Za-z0-9+\/=]{60,}[\r\n\s]*)+/g, (match) => {
-        const cleaned = match.replace(/\s+/g, "");
-        if(cleaned.length < 60) return match; // 너무 짧으면 패스
+    if (!raw) return "";
+    let processed = raw;
+  
+    // 1. 전체가 Base64 덩어리인 경우 (인코딩된 파일 자체일 때)
+    if (looksLikeBase64(processed)) {
+      try {
+        const cleaned = processed.replace(/\s+/g, "");
+        const bin = atob(cleaned);
+  
+        // 텍스트 디코딩 시도
+        const dec = new TextDecoder("utf-8").decode(Uint8Array.from([...bin].map(c => c.charCodeAt(0))));
         
-        try {
-           // Base64 유효 문자만 있는지 재확인
-           if(!/^[A-Za-z0-9+\/=]+$/.test(cleaned)) return match;
-           
-           const bin = atob(cleaned);
-           // UTF-8 텍스트 변환 시도
-           const text = new TextDecoder("utf-8").decode(Uint8Array.from([...bin].map(c=>c.charCodeAt(0))));
-           
-           // 바이너리 데이터(이미지 등)가 섞여 있으면 null char 등이 포함될 수 있음 -> 이 경우 원본 유지
-           if(/\0/.test(text)) return match; 
-
-           return text;
-        } catch(e) {
-           return match;
+        // 만약 바이너리 데이터로 인식되면 이미지 데이터로 취급
+        if (/\0/.test(dec)) {
+          // 바이너리 데이터를 기반으로 이미지 형식 추정
+          if (/^ÿØÿà/.test(bin)) {
+            // JPEG 이미지 (ÿØÿà는 JPEG 파일의 시작 바이트)
+            processed = "data:image/jpeg;base64," + cleaned;
+          } else if (/^iVBORw0KGgo/.test(bin)) {
+            // PNG 이미지 (iVBORw0KGgo는 PNG 파일의 시작 바이트)
+            processed = "data:image/png;base64," + cleaned;
+          } else if (/R0lGODdh/.test(bin)) {
+            // GIF 이미지 (R0lGODdh는 GIF 파일의 시작 바이트)
+            processed = "data:image/gif;base64," + cleaned;
+          } else {
+            // 알 수 없는 바이너리 데이터인 경우 처리하지 않음
+            processed = "data:application/octet-stream;base64," + cleaned;
+          }
+        } else {
+          processed = dec; // 텍스트로 디코딩
         }
-      });
-
-      // 3. 파서가 이미 디코딩된 텍스트를 또 Base64로 오해하지 않도록 헤더 수정
-      // Content-Transfer-Encoding: base64 -> 8bit
-      processed = processed.replace(/Content-Transfer-Encoding:\s*base64/gi, "Content-Transfer-Encoding: 8bit");
-
-      return processed;
+      } catch (e) {
+        console.warn("전체 Base64 디코딩 실패, 원본 유지:", e);
+      }
+    }
+  
+    // 2. 부분적 Base64 블록(60자 이상 연속) 강제 디코딩
+    processed = processed.replace(/([A-Za-z0-9+\/=]{60,}[\r\n\s]*)+/g, (match) => {
+      const cleaned = match.replace(/\s+/g, "");
+      if (cleaned.length < 60) return match; // 너무 짧으면 패스
+  
+      try {
+        const bin = atob(cleaned);
+        // UTF-8 텍스트 변환 시도
+        const text = new TextDecoder("utf-8").decode(Uint8Array.from([...bin].map(c => c.charCodeAt(0))));
+  
+        // 이미지 데이터로 판단되면 이미지로 처리
+        if (/\0/.test(text)) {
+          // 바이너리 데이터를 기반으로 이미지 형식 추정
+          if (/^ÿØÿà/.test(bin)) {
+            // JPEG 이미지
+            return "data:image/jpeg;base64," + cleaned;
+          } else if (/^iVBORw0KGgo/.test(bin)) {
+            // PNG 이미지
+            return "data:image/png;base64," + cleaned;
+          } else if (/R0lGODdh/.test(bin)) {
+            // GIF 이미지
+            return "data:image/gif;base64," + cleaned;
+          } else {
+            // 알 수 없는 바이너리 데이터
+            return "data:application/octet-stream;base64," + cleaned;
+          }
+        }
+  
+        return text;
+      } catch (e) {
+        return match;
+      }
+    });
+  
+    // 3. 파서가 이미 디코딩된 텍스트를 또 Base64로 오해하지 않도록 헤더 수정
+    processed = processed.replace(/Content-Transfer-Encoding:\s*base64/gi, "Content-Transfer-Encoding: 8bit");
+  
+    return processed;
   }
+
+
 
   /* --------------------------
       MIME 본문 디코딩 (Content-Transfer-Encoding 반영)
