@@ -83,8 +83,12 @@
     img {
       display: block !important;
       visibility: visible !important;
-      max-width: 100%; /* 이미지가 너무 크지 않도록 제한 */
+      max-width: 100% !important; /* 이미지가 너무 크지 않도록 제한 */
+      width: auto !important;     /* 너비를 자동으로 설정 */
+      height: auto !important;    /* 높이를 자동으로 설정 */
+      margin: 0 !important;       /* 여백 제거 */
     }
+
 
   </style>
 </head>
@@ -337,7 +341,7 @@
   
         // 텍스트 디코딩 시도
         const dec = new TextDecoder("utf-8").decode(Uint8Array.from([...bin].map(c => c.charCodeAt(0))));
-        
+  
         // 만약 바이너리 데이터로 인식되면 이미지 데이터로 취급
         if (/\0/.test(dec)) {
           // 바이너리 데이터를 기반으로 이미지 형식 추정
@@ -360,10 +364,14 @@
   
           // 이미지가 삽입될 컨테이너에 추가 (이 부분을 원하는 DOM 요소로 설정)
           const imageContainer = document.getElementById('imageContainer');
-          imageContainer.appendChild(imgElement);
+          if (imageContainer) {
+            imageContainer.appendChild(imgElement);
+          } else {
+            console.warn("이미지 컨테이너를 찾을 수 없습니다.");
+          }
   
-          // 이 부분에서는 텍스트로 반환하지 않고 이미지를 동적으로 생성하므로 processed를 수정하지 않음
-          processed = ''; // Base64 값을 텍스트로 리턴하지 않고, 이미지를 바로 DOM에 삽입
+          // 텍스트로 반환하지 않고 이미지를 바로 DOM에 삽입
+          processed = ''; 
         } else {
           processed = dec; // 텍스트로 디코딩
         }
@@ -403,7 +411,11 @@
   
           // 이미지가 삽입될 컨테이너에 추가 (이 부분을 원하는 DOM 요소로 설정)
           const imageContainer = document.getElementById('imageContainer');
-          imageContainer.appendChild(imgElement);
+          if (imageContainer) {
+            imageContainer.appendChild(imgElement);
+          } else {
+            console.warn("이미지 컨테이너를 찾을 수 없습니다.");
+          }
   
           return ''; // 텍스트 대신 이미지를 삽입하여 반환
         }
@@ -419,7 +431,6 @@
   
     return processed;
   }
-
 
 
   /* --------------------------
