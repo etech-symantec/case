@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
+  <title>22221111Outlook 케이스 타임라인 분석기 (emailjs-mime-parser · EML 전용 · 텍스트 뷰어)</title>
 
   <style>
     *{box-sizing:border-box}
@@ -305,32 +305,28 @@
   }
 
   /* --------------------------
-     Base64 판별 개선 버전
+     base64 형태인지 간단히 판별
   -------------------------- */
-  function isValidBase64(str){
-    if(!str || typeof str !== 'string') return false;
-    
-    // 공백 제거
-    const cleaned = str.replace(/\s+/g, "");
-    
-    // 최소 길이 체크 완화 (20자 이상)
-    if(cleaned.length < 20) return false;
-    
-    // Base64 문자만 포함하는지 체크
-    if(!/^[A-Za-z0-9+/]*={0,2}$/.test(cleaned)) return false;
-    
-    // 길이가 4의 배수여야 함 (패딩 포함)
-    if(cleaned.length % 4 !== 0) return false;
-    
+  function looksLikeBase64(str){
+    if(!str) return false;
+    const s = str.replace(/\s+/g,"");
+    if(s.length < 40) return false;
+    if(/[^A-Za-z0-9+/=]/.test(s)) return false;
+    // 너무 많은 '='가 있으면 이상하니 대략 필터
+    const eq = (s.match(/=/g)||[]).length;
+    if(eq > s.length/2) return false;
     return true;
   }
 
   /* --------------------------
-     MIME 본문 디코딩 (개선 버전)
+     MIME 본문 디코딩 (Content-Transfer-Encoding 반영)
+  -------------------------- */
+  /* --------------------------
+     MIME 본문 디코딩 (Content-Transfer-Encoding 반영 수정본)
   -------------------------- */
   function decodeText(node) {
     if (!node || node.content == null) return "";
-  
+    
     // 1) charset 추출
     let charset =
       (node.charset ||
@@ -339,82 +335,82 @@
           node.contentType.params.charset) ||
         "utf-8"
       ).toLowerCase();
-  
+    
     if (charset.includes("ks_c_5601") || charset.includes("ks-c-5601")) {
       charset = "euc-kr";
     }
-  
-    // 2) transfer-encoding 헤더 추출 (개선)
+    
+    // 2) transfer-encoding 헤더
     let encHeader = "";
     if (typeof node.contentTransferEncoding === "string") {
-      encHeader = node.contentTransferEncoding.toLowerCase().trim();
+      encHeader = node.contentTransferEncoding.toLowerCase();
     } else if (node.headers && node.headers["content-transfer-encoding"]) {
       const v = node.headers["content-transfer-encoding"];
-      if (typeof v === "string") {
-        encHeader = v.toLowerCase().trim();
-      } else if (Array.isArray(v) && v.length > 0) {
-        if (typeof v[0] === "string") {
-          encHeader = v[0].toLowerCase().trim();
-        } else if (v[0]?.value) {
-          encHeader = String(v[0].value).toLowerCase().trim();
-        }
-      }
+      if (typeof v === "string") encHeader = v.toLowerCase();
+      else if (Array.isArray(v) && typeof v[0] === "string")
+        encHeader = v[0].toLowerCase();
+      else if (Array.isArray(v) && v[0]?.value)
+        encHeader = v[0].value.toLowerCase();
     }
-  
-    // 3) 이미 디코딩된 바이너리(Uint8Array)인 경우
+
+    // 3) 데이터 추출 (Uint8Array라면 일단 문자열로 변환하여 핸들링 준비)
+    let raw = "";
+    let isBinary = false;
+
     if (node.content instanceof Uint8Array) {
-      try {
-        return new TextDecoder(charset).decode(node.content);
-      } catch (err) {
-        console.warn("binary decode fail:", err);
-        return new TextDecoder("utf-8").decode(node.content);
-      }
+      // Base64나 QP는 ASCII 범위이므로 utf-8로 읽어서 문자열로 만듦
+      raw = new TextDecoder("utf-8").decode(node.content);
+      isBinary = true; 
+    } else {
+      raw = String(node.content);
     }
-  
-    // 4) 문자열인 경우
-    if (typeof node.content !== "string") return "";
     
-    let raw = node.content;
-  
-    // 5) Base64 디코딩 (개선된 판별 로직)
-    const isBase64Header = encHeader.includes("base64");
-    const looksBase64 = isValidBase64(raw);
+    // 4) Base64 디코딩 (헤더가 명시되었거나, 형식이 Base64인 경우)
+    const isB64 = encHeader.includes("base64") || looksLikeBase64(raw);
     
-    if (isBase64Header || looksBase64) {
+    if (isB64) {
       try {
         const cleaned = raw.replace(/\s+/g, "");
-        const bin = atob(cleaned);
-        const bytes = Uint8Array.from([...bin].map((c) => c.charCodeAt(0)));
-        
-        // 디코딩 성공 후 유효성 검사
-        const decoded = new TextDecoder(charset, {fatal: false}).decode(bytes);
-        
-        // 너무 많은 제어문자가 있으면 실패로 간주
-        const controlCharCount = (decoded.match(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g) || []).length;
-        if (controlCharCount > decoded.length * 0.1) {
-          console.warn("Too many control characters, might not be text");
-          return raw; // 원본 반환
-        }
-        
-        return decoded;
+        const bin = atob(cleaned); // Base64 -> Binary String
+        const bytes = Uint8Array.from([...bin].map((c) => c.charCodeAt(0))); // Binary String -> Bytes
+        return new TextDecoder(charset).decode(bytes); // Bytes -> Text (Charset 적용)
       } catch (err) {
-        console.warn("base64 decode failed:", err);
-        // 실패시 아래 로직 계속
+        console.warn("base64 decode fail, trying raw:", err);
+        // 실패 시 원본 반환하되, 바이너리였으면 charset 적용 시도
+        if (isBinary && node.content instanceof Uint8Array) {
+             return new TextDecoder(charset).decode(node.content);
+        }
       }
     }
-  
-    // 6) Quoted-Printable 디코딩
+    
+    // 5) Quoted-Printable 디코딩
     if (encHeader.includes("quoted-printable")) {
       let qp = raw.replace(/=\r?\n/g, "");
       qp = qp.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) =>
         String.fromCharCode(parseInt(hex, 16))
       );
-      return qp;
+      // QP 디코딩 결과는 바이너리 스트링일 수 있으므로(euc-kr 등), 다시 바이트 변환 후 디코딩
+      try {
+          const bytes = Uint8Array.from([...qp].map(c => c.charCodeAt(0)));
+          return new TextDecoder(charset).decode(bytes);
+      } catch(e) {
+          return qp;
+      }
     }
-  
-    // 7) 그 외는 raw 그대로
+    
+    // 6) 그 외 (일반 텍스트)
+    // 인코딩이 없는데 바이너리 상태로 왔다면, 해당 Charset으로 디코딩해서 반환
+    if (isBinary && node.content instanceof Uint8Array) {
+       try {
+         return new TextDecoder(charset).decode(node.content);
+       } catch(e) {
+         return raw;
+       }
+    }
+
     return raw;
   }
+
 
   /* --------------------------
      text/plain 재귀 수집
@@ -494,6 +490,7 @@
         text = text.replace(/\n{3,}/g,"\n\n");
         return text.trim();
       }catch(e){
+        // 실패시 아래 QP 처리 계속
         console.warn("HTML to text 변환 실패:", e);
       }
     }
@@ -512,6 +509,33 @@
     return out.trim();
   }
 
+  /* --------------------------
+     Base64 본문 디코딩 (fallback용)
+  -------------------------- */
+  function tryDecodeBase64(text){
+    if(!text) return text;
+
+    const trimmed = text.trim();
+
+    const isLikely =
+      /^[A-Za-z0-9+\/=\r\n]+$/.test(trimmed) &&
+      trimmed.length > 50 &&
+      !trimmed.includes(" ") &&
+      !trimmed.includes(":");
+
+    if(!isLikely) return text;
+
+    try{
+      const cleaned = trimmed.replace(/\s+/g,"");
+      const decoded = atob(cleaned);
+
+      if(/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(decoded)) return text;
+
+      return decoded;
+    }catch(e){
+      return text;
+    }
+  }
   /* --------------------------
      EML 파서 (핵심)
   -------------------------- */
@@ -581,6 +605,9 @@
       bodyText = bodyFallback;
     }
 
+    // 혹시 남은 base64 인코딩 텍스트가 있으면 한번 더 디코딩 시도
+    bodyText = tryDecodeBase64(bodyText);
+
     // MIME boundary/헤더 제거 + 지난 메일 내용 컷 + QP/HTML 정리
     bodyText = cleanupBody(bodyText);
 
@@ -606,8 +633,8 @@
   /* --------------------------
      케이스 데이터 구조
   -------------------------- */
-  let casesMeta=[];
-  let caseData={};
+  let casesMeta=[];    // [{id,name}]
+  let caseData={};     // id → {id,name,emails}
   let currentCaseId=null;
 
   let allEmails=[];
@@ -663,4 +690,238 @@
 
   /* --------------------------
      후처리 / 렌더링
-  ------------------------
+  -------------------------- */
+  function postProcess(){
+    if(!allEmails.length){
+      document.getElementById("statsBox").textContent = "메일 없음";
+      document.getElementById("threadList").innerHTML = "";
+      document.getElementById("mailContainer").innerHTML = "";
+      document.getElementById("summaryContainer").innerHTML = "";
+      document.getElementById("viewInfo").textContent = "";
+      return;
+    }
+
+    allEmails.sort((a,b)=>{
+      const t1 = (a.dateObj instanceof Date && !isNaN(a.dateObj)) ? a.dateObj.getTime() : 0;
+      const t2 = (b.dateObj instanceof Date && !isNaN(b.dateObj)) ? b.dateObj.getTime() : 0;
+      return t1 - t2;
+    });
+
+    const map = new Map();
+    allEmails.forEach(m=>{
+      const k=m.threadKey || "(no-subject)";
+      if(!map.has(k)) map.set(k,{threadKey:k,subject:m.subject,items:[]});
+      map.get(k).items.push(m);
+    });
+    threads=[...map.values()];
+
+    updateStats();
+    renderThreads();
+    renderView();
+  }
+
+  function updateStats(){
+    const statsBox = document.getElementById("statsBox");
+    statsBox.innerHTML = `메일: <b>${allEmails.length}</b>개<br>스레드: <b>${threads.length}</b>개`;
+  }
+
+  function renderThreads(){
+    const el = document.getElementById("threadList");
+    el.innerHTML = "";
+    threads.forEach(t=>{
+      const div=document.createElement("div");
+      div.className="thread-item"+(t.threadKey===currentThreadKey?" active":"");
+      div.textContent=`${t.subject} (${t.items.length})`;
+      div.onclick=()=>{
+        currentThreadKey=t.threadKey;
+        currentView="thread";
+        renderView();
+        renderThreads();
+      };
+      el.appendChild(div);
+    });
+  }
+
+  function renderView(){
+    let list=[...allEmails];
+    if(currentView==="thread" && currentThreadKey){
+      const th=threads.find(x=>x.threadKey===currentThreadKey);
+      list=th?th.items:[];
+    }
+
+    const kw = document.getElementById("searchInput").value.toLowerCase().trim();
+    if(kw){
+      list = list.filter(m=>{
+        const addrStr =
+          renderAddressList(m.from) +
+          renderAddressList(m.to) +
+          renderAddressList(m.cc || []);
+        return (m.subject + m.body + addrStr).toLowerCase().includes(kw);
+      });
+    }
+
+    const viewInfo = document.getElementById("viewInfo");
+    if(list.length > 0){
+      viewInfo.innerHTML = `
+        <div style="font-size:16px;font-weight:600;margin-bottom:10px;padding:6px 0;">
+          ${esc(list[0].subject)}
+        </div>
+        <div style="font-size:12px;color:#555;">${currentView==="timeline"?"전체 타임라인":"스레드"}</div>
+      `;
+    } else {
+      viewInfo.innerHTML = "";
+    }
+
+    const mc=document.getElementById("mailContainer");
+    mc.innerHTML="";
+
+    list.forEach((m,i)=>{
+      const d=document.createElement("div");
+      d.className="mail-card";
+
+      d.innerHTML=`
+        <div class="mail-header">
+          <div class="mail-meta">
+            From: ${esc(renderAddressList(m.from))}<br>
+            To: ${esc(renderAddressList(m.to))}
+          </div>
+          <div class="mail-date">${esc(fmtDate(m.dateObj))}</div>
+        </div>
+
+        <div class="mail-body-preview">
+          ${esc(m.preview)} <span class="clickable" id="toggle_${i}">더보기</span>
+        </div>
+
+        <div class="mail-body-full" id="full_${i}">${esc(m.body)}</div>
+
+        <div style="margin-top:6px">
+          <span class="pill">${esc(m.filename)}</span>
+          <span class="pill">EML</span>
+        </div>
+      `;
+
+      mc.appendChild(d);
+
+      const toggle = document.getElementById(`toggle_${i}`);
+      const full   = document.getElementById(`full_${i}`);
+
+      toggle.onclick=()=>{
+        const show = full.style.display==="block";
+        full.style.display = show?"none":"block";
+        toggle.textContent = show?"더보기":"접기";
+      };
+    });
+  }
+
+  /* --------------------------
+     케이스 불러오기 / 생성
+  -------------------------- */
+  async function loadCases(){
+    try{
+      const idx = await ghGet("cases/index.json");
+      if(!idx){
+        casesMeta=[];caseData={};currentCaseId=null;
+        renderCaseList();
+        return;
+      }
+      casesMeta=idx;
+      caseData={};
+      currentCaseId=null;
+      renderCaseList();
+    }catch(e){alert("케이스 목록 불러오기 실패: "+e.message);}
+  }
+
+  function renderCaseList(){
+    const el=document.getElementById("caseList");
+    el.innerHTML="";
+    casesMeta.forEach(c=>{
+      const div=document.createElement("div");
+      div.className="case-item"+(c.id===currentCaseId?" active":"");
+      div.textContent=c.name;
+      div.onclick=()=>selectCase(c.id);
+      el.appendChild(div);
+    });
+  }
+
+  async function selectCase(id){
+    currentCaseId=id;
+    renderCaseList();
+    try{
+      const obj=await ghGet(`cases/${id}.json`);
+      if(obj){
+        caseData[id]=obj;
+        allEmails=obj.emails||[];
+        postProcess();
+      }
+    }catch(e){alert("케이스 로딩 실패 "+e.message);}
+  }
+
+  async function addCase(){
+    const name=prompt("케이스 이름을 입력하세요:");
+    if(!name) return;
+    const id="case_"+Date.now();
+
+    casesMeta.push({id,name});
+    caseData[id]={id,name,emails:[]};
+    currentCaseId=id;
+
+    await ghPut("cases/index.json",casesMeta,"case index update");
+    await ghPut(`cases/${id}.json`,caseData[id],"create case");
+
+    renderCaseList();
+  }
+
+  /* --------------------------
+     이벤트 바인딩
+  -------------------------- */
+  const fileInput   = document.getElementById("fileInput");
+  const dropZone    = document.getElementById("dropZone");
+  const searchInput = document.getElementById("searchInput");
+  const btnTimeline = document.getElementById("btnTimeline");
+  const btnThread   = document.getElementById("btnThread");
+
+  document.getElementById("btnSaveGh").onclick=()=>{
+    github.token = document.getElementById("ghToken").value.trim();
+    localStorage.setItem("github_token",github.token);
+    alert("GitHub 토큰을 저장했습니다.");
+  };
+  document.getElementById("btnLoadCases").onclick=loadCases;
+  document.getElementById("btnAddCase").onclick=addCase;
+
+  btnTimeline.onclick=()=>{
+    currentView="timeline";currentThreadKey=null;
+    btnTimeline.classList.add("active");btnThread.classList.remove("active");
+    renderView();
+  };
+  btnThread.onclick=()=>{
+    currentView="thread";
+    btnThread.classList.add("active");btnTimeline.classList.remove("active");
+    renderView();
+  };
+
+  searchInput.oninput=renderView;
+  document.getElementById("btnClearSearch").onclick=()=>{
+    searchInput.value="";renderView();
+  };
+
+  fileInput.onchange=(e)=>handleFiles([...e.target.files]);
+
+  window.ondragover=e=>{e.preventDefault();dropZone.classList.add("dragover");};
+  window.ondragleave=()=>dropZone.classList.remove("dragover");
+  window.ondrop=e=>{
+    e.preventDefault();dropZone.classList.remove("dragover");
+    handleFiles([...e.dataTransfer.files]);
+  };
+
+  // 초기 토큰 로딩
+  (function(){
+    const t=localStorage.getItem("github_token");
+    if(t){
+      github.token=t;
+      document.getElementById("ghToken").value=t;
+    }
+  })();
+</script>
+
+</body>
+</html>
