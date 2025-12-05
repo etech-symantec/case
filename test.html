@@ -2,82 +2,161 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Outlook 케이스 타임라인 분석기 (Pre-decode Base64)</title>
+  <title>Outlook 케이스 타임라인 분석기 (이미지/텍스트 완벽 지원)</title>
 
   <style>
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      background:#f3f4f6;
-      color:#111;
+    /* 기본 스타일 초기화 */
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #f3f4f6;
+      color: #111;
     }
-    header{
-      position:sticky;top:0;z-index:10;
-      background:linear-gradient(90deg,#1e40af,#0f766e);
-      color:#fff;padding:12px 20px;
-      display:flex;justify-content:space-between;align-items:center;gap:12px;
-      box-shadow:0 2px 6px rgba(0,0,0,.2);
+
+    /* 헤더 영역 */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: linear-gradient(90deg, #1e40af, #0f766e);
+      color: #fff;
+      padding: 12px 20px;
+      display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,.2);
     }
-    .title{font-size:18px;font-weight:600}
-    .subtitle{font-size:12px;opacity:.9}
-    .file-box{
-      display:flex;align-items:center;gap:8px;
-      background:rgba(255,255,255,.2);padding:6px 12px;
-      border-radius:999px;font-size:12px
+    .title { font-size: 18px; font-weight: 600; }
+    .subtitle { font-size: 12px; opacity: 0.9; margin-top: 2px; }
+    
+    .file-box {
+      display: flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,0.2); padding: 6px 12px;
+      border-radius: 999px; font-size: 12px;
+      white-space: nowrap;
     }
-    main{display:flex;gap:16px;padding:16px}
-    .sidebar{
-      width:260px;background:#fff;border-radius:12px;padding:12px;
-      height:calc(100vh - 70px);overflow:auto;
-      box-shadow:0 2px 6px rgba(0,0,0,.08);font-size:12px;
+    .file-box:hover { background: rgba(255,255,255,0.3); }
+
+    /* 메인 레이아웃 */
+    main { display: flex; gap: 16px; padding: 16px; height: calc(100vh - 60px); }
+    
+    /* 사이드바 */
+    .sidebar {
+      width: 280px; flex-shrink: 0;
+      background: #fff; border-radius: 12px; padding: 12px;
+      overflow-y: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.05); font-size: 12px;
+      display: flex; flex-direction: column;
     }
-    .content{flex:1;height:calc(100vh - 70px);overflow:auto}
-    .section-title{font-weight:600;font-size:13px;margin:8px 0}
-    .small-btn{
-      padding:6px 8px;border-radius:8px;border:1px solid #d1d5db;font-size:12px;
-      background:#fff;cursor:pointer;width:100%
+    
+    /* 콘텐츠 영역 */
+    .content {
+      flex: 1;
+      display: flex; flex-direction: column;
+      overflow: hidden; /* 내부 스크롤을 위해 */
     }
-    .small-btn:hover{background:#f3f4f6}
-    .case-item{padding:6px;border-radius:8px;cursor:pointer;margin-bottom:4px}
-    .case-item:hover{background:#e5e7eb}
-    .case-item.active{background:#0f766e;color:#fff}
-    #dropZone{
-      border:2px dashed #9ca3af;background:#fff;padding:30px;
-      border-radius:12px;text-align:center;font-size:13px;color:#6b7280;margin-bottom:12px
+
+    /* 공통 UI 요소 */
+    .section-title { font-weight: 700; font-size: 13px; margin: 12px 0 6px 0; color: #374151; }
+    .section-title:first-child { margin-top: 0; }
+
+    .small-btn {
+      padding: 6px 10px; border-radius: 6px; border: 1px solid #d1d5db;
+      font-size: 12px; background: #fff; cursor: pointer; width: 100%;
+      transition: all 0.2s; color: #374151;
     }
-    #dropZone.dragover{border-color:#2563eb;background:#eff6ff;color:#1d4ed8}
-    .controls-row{display:flex;gap:8px;margin-bottom:10px}
-    .search-input{
-      flex:1;padding:6px 12px;border-radius:999px;border:1px solid #d1d5db;font-size:13px
+    .small-btn:hover { background: #f3f4f6; border-color: #9ca3af; }
+    .small-btn:active { background: #e5e7eb; }
+
+    input[type="text"], input[type="password"], input[type="search"] {
+      width: 100%; padding: 6px 8px; border: 1px solid #d1d5db;
+      border-radius: 6px; font-size: 12px; margin-bottom: 4px;
     }
-    .toggle-group{display:flex;gap:6px;margin:10px 0}
-    .toggle-btn{
-      flex:1;padding:6px;border-radius:999px;border:1px solid #d1d5db;background:#fff;font-size:12px
+    input:focus { outline: 2px solid #2563eb; border-color: transparent; }
+
+    /* 케이스 목록 */
+    .case-item {
+      padding: 8px; border-radius: 6px; cursor: pointer; margin-bottom: 2px;
+      display: flex; justify-content: space-between; align-items: center;
     }
-    .toggle-btn.active{background:#1e40af;color:#fff;border-color:#1e40af}
-    .thread-item{padding:6px;border-radius:8px;margin-bottom:4px;cursor:pointer}
-    .thread-item:hover{background:#f3f4f6}
-    .thread-item.active{background:#1d4ed8;color:#fff}
-    .summary-card{
-      background:#fefce8;border:1px solid #facc15;padding:10px;border-radius:12px;
-      font-size:12px;white-space:pre-wrap;margin-bottom:12px
+    .case-item:hover { background: #f3f4f6; }
+    .case-item.active { background: #0f766e; color: #fff; font-weight: 600; }
+
+    /* 스레드/타임라인 토글 */
+    .toggle-group { display: flex; gap: 4px; margin-bottom: 8px; background: #e5e7eb; padding: 3px; border-radius: 8px; }
+    .toggle-btn {
+      flex: 1; border: none; background: transparent; padding: 6px;
+      border-radius: 6px; font-size: 12px; cursor: pointer; color: #6b7280; font-weight: 500;
     }
-    .mail-card{
-      background:#fff;border-radius:12px;padding:12px;margin-bottom:12px;
-      box-shadow:0 1px 4px rgba(0,0,0,.08);border-left:3px solid #e5e7eb;font-size:12px
+    .toggle-btn.active { background: #fff; color: #1e40af; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+
+    /* 스레드 목록 */
+    .thread-item {
+      padding: 6px 8px; border-radius: 6px; margin-bottom: 2px; cursor: pointer;
+      border-left: 3px solid transparent;
     }
-    .mail-header{display:flex;justify-content:space-between;margin-bottom:6px;gap:8px}
-    .mail-meta{font-size:12px;color:#6b7280}
-    .mail-date{font-size:12px;color:#374151;white-space:nowrap}
-    .clickable{color:#2563eb;cursor:pointer;text-decoration:underline dotted;font-size:12px}
-    .mail-body-preview{white-space:pre-wrap;margin-top:4px;color:#374151}
-    .mail-body-full{display:none;border-top:1px dashed #ddd;padding-top:6px;margin-top:6px;white-space:pre-wrap}
-    .pill{display:inline-block;padding:2px 6px;border-radius:999px;background:#f3f4f6;margin-right:4px;font-size:11px}
-    @media(max-width:900px){
-      main{flex-direction:column}
-      .sidebar{width:100%;height:auto}
-      .content{height:auto}
+    .thread-item:hover { background: #f3f4f6; }
+    .thread-item.active { background: #eff6ff; border-left-color: #2563eb; color: #1e40af; font-weight: 600; }
+
+    /* 드래그 앤 드롭 존 */
+    #dropZone {
+      border: 2px dashed #9ca3af; background: #fff; padding: 24px;
+      border-radius: 12px; text-align: center; font-size: 13px; color: #6b7280;
+      margin-bottom: 12px; transition: all 0.2s; cursor: pointer;
+    }
+    #dropZone:hover { border-color: #6b7280; background: #f9fafb; }
+    #dropZone.dragover { border-color: #2563eb; background: #eff6ff; color: #1d4ed8; transform: scale(1.01); }
+
+    /* 검색바 */
+    .controls-row { display: flex; gap: 8px; margin-bottom: 12px; }
+    .search-input { flex: 1; border-radius: 99px !important; padding-left: 16px !important; }
+
+    /* 메일 컨테이너 (스크롤 영역) */
+    #mailContainer {
+      flex: 1; overflow-y: auto; padding-right: 4px;
+    }
+    
+    /* 메일 카드 스타일 */
+    .mail-card {
+      background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-left: 4px solid #e5e7eb; font-size: 13px;
+    }
+    .mail-header {
+      display: flex; justify-content: space-between; align-items: flex-start;
+      margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid #f3f4f6;
+    }
+    .mail-info { display: flex; flex-direction: column; gap: 4px; }
+    .mail-label { color: #6b7280; font-size: 11px; font-weight: 600; width: 40px; display: inline-block; }
+    .mail-date { font-size: 12px; color: #6b7280; white-space: nowrap; background: #f3f4f6; padding: 2px 8px; border-radius: 99px; }
+
+    /* 본문 프리뷰/전체 */
+    .mail-body-preview { white-space: pre-wrap; color: #4b5563; line-height: 1.5; }
+    .mail-body-full { display: none; margin-top: 12px; white-space: pre-wrap; line-height: 1.6; color: #1f2937; }
+    .clickable { color: #2563eb; cursor: pointer; font-weight: 500; }
+    .clickable:hover { text-decoration: underline; }
+
+    /* 이미지 갤러리 */
+    .mail-images {
+      margin-top: 16px; padding-top: 16px; border-top: 1px dashed #e5e7eb;
+      display: flex; flex-wrap: wrap; gap: 12px;
+    }
+    .mail-img-box {
+      border: 1px solid #e5e7eb; padding: 4px; border-radius: 8px; background: #fafafa;
+    }
+    .mail-img-box img {
+      max-width: 100%; height: auto; max-height: 400px; display: block; border-radius: 4px; object-fit: contain;
+    }
+    .img-name { font-size: 11px; color: #6b7280; text-align: center; margin-top: 4px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* 태그/뱃지 */
+    .pill {
+      display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px;
+      background: #f3f4f6; color: #4b5563; font-size: 11px; margin-right: 4px;
+    }
+
+    /* 반응형 */
+    @media (max-width: 900px) {
+      main { flex-direction: column; height: auto; }
+      .sidebar { width: 100%; height: auto; max-height: 300px; }
+      .content { height: auto; }
+      #mailContainer { height: auto; overflow: visible; }
     }
   </style>
 </head>
@@ -86,38 +165,43 @@
 <header>
   <div>
     <div class="title">Outlook 케이스 타임라인 분석기</div>
-    <div class="subtitle">EML 전용 · Pre-decode Base64 · GitHub JSON 저장 · 텍스트 뷰어</div>
+    <div class="subtitle">Base64 Text/Image Decode · GitHub Sync · EML Viewer</div>
   </div>
-  <div class="file-box">
-    <span>📎 EML 파일 선택</span>
-    <input id="fileInput" type="file" multiple accept=".eml" />
-  </div>
+  <label class="file-box" style="cursor: pointer;">
+    <span>📎 EML 파일 추가</span>
+    <input id="fileInput" type="file" multiple accept=".eml" style="display: none;" />
+  </label>
 </header>
 
 <main>
   <aside class="sidebar">
-    <div class="section-title">GitHub 설정</div>
-    <label style="font-size:12px">개인 액세스 토큰</label>
-    <input id="ghToken" type="password" placeholder="github_pat_..." style="width:100%;padding:6px;border:1px solid #ddd;border-radius:6px">
-    <button id="btnSaveGh" class="small-btn" style="margin-top:6px">토큰 저장</button>
-    <button id="btnLoadCases" class="small-btn" style="margin-top:6px">케이스 목록 불러오기</button>
-
-    <hr style="margin:16px 0">
-
-    <div class="section-title">케이스 관리</div>
-    <button id="btnAddCase" class="small-btn">➕ 새 케이스</button>
-    <div id="caseList" style="margin-top:10px"></div>
-
-    <hr style="margin:16px 0">
-
-    <div id="statsBox" style="font-size:12px;line-height:1.5;color:#444">
-      GitHub 토큰 입력 후 케이스 목록을 불러오세요.
+    <div class="section-title">GitHub 연동</div>
+    <div style="margin-bottom: 4px;">
+      <input id="ghToken" type="password" placeholder="GitHub Personal Access Token (PAT)" />
+    </div>
+    <div style="display: flex; gap: 4px;">
+      <button id="btnSaveGh" class="small-btn">토큰 저장</button>
+      <button id="btnLoadCases" class="small-btn">불러오기</button>
     </div>
 
-    <div class="section-title">보기 모드</div>
+    <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+
+    <div class="section-title" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>케이스 목록</span>
+      <button id="btnAddCase" class="small-btn" style="width:auto; padding: 2px 8px;">+ 추가</button>
+    </div>
+    <div id="caseList">
+      <div style="color:#9ca3af; padding:8px; text-align:center;">케이스를 선택하거나 생성하세요</div>
+    </div>
+
+    <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0;">
+
+    <div id="statsBox" style="font-size: 11px; color: #6b7280; margin-bottom: 12px;"></div>
+
+    <div class="section-title">보기 방식</div>
     <div class="toggle-group">
-      <button id="btnTimeline" class="toggle-btn active">타임라인</button>
-      <button id="btnThread" class="toggle-btn">스레드</button>
+      <button id="btnTimeline" class="toggle-btn active">타임라인 (전체)</button>
+      <button id="btnThread" class="toggle-btn">스레드 (주제별)</button>
     </div>
 
     <div class="section-title">스레드 목록</div>
@@ -125,833 +209,850 @@
   </aside>
 
   <section class="content">
-
     <div id="dropZone">
       이곳에 <b>.eml</b> 파일을 드래그해서 놓으세요<br>
-      <span style="font-size:11px;color:#aaa">선택된 케이스에 자동 저장됩니다 (MSG는 사전에 EML로 변환 필요)</span>
+      <span style="font-size: 11px; color: #9ca3af;">(MSG 파일은 지원하지 않으므로 EML로 변환 후 올려주세요)</span>
     </div>
 
     <div class="controls-row">
-      <input id="searchInput" class="search-input" placeholder="제목 / 본문 / 보낸사람 / 받는사람 검색">
-      <button id="btnClearSearch" class="small-btn">초기화</button>
+      <input id="searchInput" class="search-input" type="search" placeholder="제목, 본문, 보낸사람, 받는사람 검색..." />
+      <button id="btnClearSearch" class="small-btn" style="width: auto;">초기화</button>
     </div>
 
-    <div id="viewInfo" style="font-size:12px;color:#444;margin-bottom:6px"></div>
+    <div id="viewInfo" style="font-size: 14px; font-weight: 600; color: #111; margin-bottom: 10px; min-height: 20px;"></div>
 
-    <div id="summaryContainer"></div>
     <div id="mailContainer"></div>
   </section>
 </main>
 
 <script type="module">
+  // emailjs-mime-parser 라이브러리 로드 (ES Module)
   import MimeParser from "https://esm.run/emailjs-mime-parser@2.0.6";
-  
-  function parseMime(raw) {
-    const parser = new MimeParser();
-    parser.write(raw);
-    parser.end();
-    return parser.node;
-  }
 
-  /* --------------------------
-      GitHub 저장소 설정
-  -------------------------- */
-  let github = {
+  // --------------------------------------------------------------------------
+  // 1. GitHub API 유틸리티
+  // --------------------------------------------------------------------------
+  const github = {
     user: "etech-symantec",
     repo: "case",
     branch: "main",
     token: ""
   };
 
-  function ghHeaders(){
-    const h = {"Accept":"application/vnd.github+json"};
-    if(github.token) h["Authorization"] = "Bearer " + github.token;
+  function ghHeaders() {
+    const h = { "Accept": "application/vnd.github+json" };
+    if (github.token) h["Authorization"] = "Bearer " + github.token;
     return h;
   }
-  function ghUrl(path){
+
+  function ghUrl(path) {
     return `https://api.github.com/repos/${github.user}/${github.repo}/contents/${path}`;
   }
 
-  function b64e(str){return btoa(unescape(encodeURIComponent(str)));}
-  function b64d(b){return decodeURIComponent(escape(atob(b)));}
-
-  async function ghGet(path){
-    const res = await fetch(ghUrl(path)+"?ref="+github.branch,{headers:ghHeaders()});
-    if(res.status===404) return null;
-    if(!res.ok) throw new Error("GET 실패 "+res.status);
-    const data = await res.json();
-    return JSON.parse(b64d(data.content));
+  // Unicode 문자열을 Base64로 인코딩/디코딩 (한글 깨짐 방지)
+  function b64e(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  }
+  function b64d(b) {
+    return decodeURIComponent(escape(atob(b)));
   }
 
-  async function ghPut(path,obj,msg){
-    if(!github.token){alert("GitHub 토큰 필요");return;}
-    const url = ghUrl(path);
-
-    let sha=null;
-    const exist = await fetch(url,{headers:ghHeaders()});
-    if(exist.status===200){
-      const j = await exist.json();
-      sha = j.sha;
+  async function ghGet(path) {
+    const url = ghUrl(path) + "?ref=" + github.branch;
+    const res = await fetch(url, { headers: ghHeaders() });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`GET Error ${res.status}`);
+    const data = await res.json();
+    // GitHub API는 content를 base64로 줌
+    if (!data.content) return null;
+    // JSON 파싱
+    try {
+      return JSON.parse(b64d(data.content));
+    } catch (e) {
+      console.error("JSON Parse Error:", e);
+      return null;
     }
+  }
 
-    const body={
-      message: msg || "update",
-      content: b64e(JSON.stringify(obj,null,2)),
+  async function ghPut(path, obj, msg) {
+    if (!github.token) {
+      alert("GitHub 토큰이 설정되지 않았습니다.");
+      return;
+    }
+    const url = ghUrl(path);
+    let sha = null;
+
+    // 기존 파일 확인 (SHA 획득용)
+    try {
+      const exist = await fetch(url, { headers: ghHeaders() });
+      if (exist.ok) {
+        const j = await exist.json();
+        sha = j.sha;
+      }
+    } catch (e) { /* 파일 없음 무시 */ }
+
+    const body = {
+      message: msg || "update via web tool",
+      content: b64e(JSON.stringify(obj, null, 2)), // 보기 좋게 포맷팅
       branch: github.branch
     };
-    if(sha) body.sha = sha;
+    if (sha) body.sha = sha;
 
-    const res = await fetch(url,{
-      method:"PUT",
-      headers:{...ghHeaders(),"Content-Type":"application/json"},
-      body:JSON.stringify(body)
+    const res = await fetch(url, {
+      method: "PUT",
+      headers: { ...ghHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify(body)
     });
-    if(!res.ok){
-      const t=await res.text();
-      throw new Error("PUT 실패 "+res.status+" "+t);
+
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`PUT Error ${res.status}: ${t}`);
     }
   }
 
-  /* --------------------------
-      포맷터 / 유틸
-  -------------------------- */
-  function normalizeSubject(s){
-    if(!s) return "(no-subject)";
-    return s
-      .toLowerCase()
-      .replace(/^\s*(re|fw|fwd|답장|전달|회신)\s*:\s*/gi,"")
-      .replace(/^\[.*?\]\s*/,"")
-      .trim() || "(no-subject)";
-  }
+  // --------------------------------------------------------------------------
+  // 2. MIME 디코딩 및 파싱 유틸리티
+  // --------------------------------------------------------------------------
+  
+  // RFC 2047 헤더 디코딩 (=?utf-8?B?....?=)
+  function decodeMimeWord(str) {
+    if (!str) return "";
+    return str.replace(/=\?([^?]+)\?([BbQq])\?([^?]+)\?=/g, (m, charset, enc, text) => {
+      try {
+        charset = charset.toLowerCase();
+        // KS_C_5601 대응
+        if (charset.includes("ks_c_5601") || charset.includes("ks-c-5601")) charset = "euc-kr";
 
-  function fmtDate(d){
-    if(!(d instanceof Date) || isNaN(d)) return "날짜 없음";
-    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-  }
-
-  function esc(s){
-    return String(s||"").replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
-  }
-
-  function makePreview(body){
-    if(!body) return "(본문 없음)";
-    const first = String(body).split(/\r?\n/).map(l=>l.trim()).filter(Boolean).slice(0,3).join(" ");
-    return first.length>260 ? first.slice(0,260)+"…" : first;
-  }
-
-  /* --------------------------
-      Encoded-Word 디코더 (RFC 2047)
-  -------------------------- */
-  function decodeMimeWord(str){
-    if(!str) return "";
-
-    return str.replace(/=\?([^?]+)\?([BbQq])\?([^?]+)\?=/g,
-      (m, charset, enc, text) => {
-        try{
-          charset = charset.toLowerCase();
-          if(charset.includes("ks_c_5601") || charset.includes("ks-c-5601")){
-            charset = "euc-kr";
-          }
-
-          if(enc.toUpperCase()==="B"){
-            const bin = atob(text.replace(/\s+/g,""));
-            const bytes = Uint8Array.from([...bin].map(c=>c.charCodeAt(0)));
-            return new TextDecoder(charset).decode(bytes);
-          }
-
-          if(enc.toUpperCase()==="Q"){
-            let qp = text.replace(/_/g," ");
-            qp = qp.replace(/=([0-9A-Fa-f]{2})/g,(m,hex)=>String.fromCharCode(parseInt(hex,16)));
-            const bytes = Uint8Array.from([...qp].map(c=>c.charCodeAt(0)));
-            return new TextDecoder(charset).decode(bytes);
-          }
-        }catch(e){
-          console.warn("decodeMimeWord 오류:", e);
+        const decoder = new TextDecoder(charset);
+        if (enc.toUpperCase() === "B") {
+          // Base64
+          const bin = atob(text.replace(/\s+/g, ""));
+          const bytes = Uint8Array.from([...bin].map(c => c.charCodeAt(0)));
+          return decoder.decode(bytes);
+        } else if (enc.toUpperCase() === "Q") {
+          // Quoted-Printable
+          let qp = text.replace(/_/g, " ");
+          qp = qp.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
+          // Q인코딩은 보통 ASCII 범위지만, 드물게 charset 적용 필요할 수 있음.
+          // 여기서는 단순 문자열 치환 후 디코딩 시도
+          const bytes = Uint8Array.from([...qp].map(c => c.charCodeAt(0)));
+          return decoder.decode(bytes);
         }
-        return m;
+      } catch (e) {
+        console.warn("Header decode warning:", e);
       }
-    );
-  }
-
-  /* --------------------------
-      주소 파서
-  -------------------------- */
-  function parseAddressList(raw){
-    if(!raw) return [];
-    raw = decodeMimeWord(raw);
-
-    const parts = raw.split(/,(?![^\<]*\>)/g).map(s=>s.trim()).filter(Boolean);
-
-    return parts.map(p=>{
-      const m = p.match(/(.*)<(.+?)>/);
-      if(m){
-        return {name:m[1].trim().replace(/^"|"$/g,""), email:m[2].trim()};
-      }
-      return {name:"", email:p};
+      return m;
     });
   }
 
-  function renderAddressList(list){
-    if(!list || !list.length) return "";
-    return list
-      .map(x=>{
-        if(x.name) return `${x.name} <${x.email}>`;
-        return x.email;
-      })
-      .join(", ");
+  // 이메일 주소 리스트 파싱 ("Name <email@com>, ...")
+  function parseAddressList(raw) {
+    if (!raw) return [];
+    raw = decodeMimeWord(raw);
+    // 쉼표로 분리하되, <> 안의 쉼표는 무시하는 정규식은 복잡하므로 단순 분리 후 보정
+    const parts = raw.split(/,(?![^<]*>)/).map(s => s.trim()).filter(Boolean);
+    
+    return parts.map(p => {
+      // "이름" <이메일> 형태 추출
+      const m = p.match(/(.*)<(.+?)>/);
+      if (m) {
+        let name = m[1].trim().replace(/^["']|["']$/g, "");
+        return { name, email: m[2].trim() };
+      }
+      return { name: "", email: p };
+    });
   }
 
-  /* --------------------------
-      base64 형태인지 간단히 판별
-  -------------------------- */
-  function looksLikeBase64(str){
-    if(!str) return false;
-    const s = str.replace(/\s+/g,"");
-    if(s.length < 40) return false;
-    if(/[^A-Za-z0-9+/=]/.test(s)) return false;
-    // 너무 많은 '='가 있으면 이상하니 대략 필터
-    const eq = (s.match(/=/g)||[]).length;
-    if(eq > s.length/2) return false;
+  // 주소 리스트 화면 표시용 변환
+  function renderAddresses(list) {
+    if (!list || list.length === 0) return "";
+    return list.map(x => x.name ? `${x.name} <${x.email}>` : x.email).join(", ");
+  }
+
+  // Base64 패턴 감지 (간이)
+  function looksLikeBase64(str) {
+    if (!str) return false;
+    const s = str.replace(/\s+/g, "");
+    if (s.length < 40) return false; // 너무 짧으면 무시
+    // Base64 문자 외의 것이 포함되어 있는지
+    if (/[^A-Za-z0-9+/=]/.test(s)) return false;
+    // 패딩(=)이 중간에 나오거나 너무 많으면 아님
+    const eq = (s.match(/=/g) || []).length;
+    if (eq > 2 && eq > s.length / 2) return false; 
     return true;
   }
 
-  /* --------------------------
-      [NEW] 원본 Base64 선처리 (Pre-Decoder)
-  -------------------------- */
+  // --------------------------------------------------------------------------
+  // 3. 핵심 전처리: 텍스트 Base64 디코딩 (이미지 손상 방지)
+  // --------------------------------------------------------------------------
   function preprocessRawContent(raw) {
-      if(!raw) return "";
-      let processed = raw;
+    if (!raw) return "";
+    let processed = raw;
 
-      // 1. 전체가 Base64 덩어리인 경우 (인코딩된 파일 자체일 때)
-      if(looksLikeBase64(processed)){
-        try{
-          const cleaned = processed.replace(/\s+/g,"");
-          const bin = atob(cleaned);
-          const dec = new TextDecoder("utf-8").decode(Uint8Array.from([...bin].map(c=>c.charCodeAt(0))));
-          processed = dec; // 디코딩 성공 시 덮어쓰기
-        }catch(e){
-          console.warn("전체 Base64 디코딩 실패, 원본 유지:", e);
-        }
-      }
-
-      // 2. 부분적 Base64 블록(60자 이상 연속) 강제 디코딩
-      // Regex: 알파벳/숫자/+/= 문자가 60개 이상 연속됨 (줄바꿈 허용)
-      processed = processed.replace(/([A-Za-z0-9+\/=]{60,}[\r\n\s]*)+/g, (match) => {
-        const cleaned = match.replace(/\s+/g, "");
-        if(cleaned.length < 60) return match; // 너무 짧으면 패스
+    // (A) 파일 전체가 거대한 Base64 덩어리인 경우 (드물지만 존재)
+    if (looksLikeBase64(processed)) {
+      try {
+        const cleaned = processed.replace(/\s+/g, "");
+        const bin = atob(cleaned);
+        const text = new TextDecoder("utf-8").decode(Uint8Array.from([...bin].map(c => c.charCodeAt(0))));
         
-        try {
-           // Base64 유효 문자만 있는지 재확인
-           if(!/^[A-Za-z0-9+\/=]+$/.test(cleaned)) return match;
-           
-           const bin = atob(cleaned);
-           // UTF-8 텍스트 변환 시도
-           const text = new TextDecoder("utf-8").decode(Uint8Array.from([...bin].map(c=>c.charCodeAt(0))));
-           
-           // 바이너리 데이터(이미지 등)가 섞여 있으면 null char 등이 포함될 수 있음 -> 이 경우 원본 유지
-           if(/\0/.test(text)) return match; 
-
-           return text;
-        } catch(e) {
-           return match;
+        // 텍스트인지 바이너리(이미지 등)인지 판단: NULL 문자(\0)나 대체문자(\uFFFD) 유무
+        if (!/\0/.test(text) && !text.includes("\uFFFD")) {
+          processed = text;
         }
-      });
+      } catch (e) { /* 디코딩 실패 시 원본 유지 */ }
+    }
 
-      // 3. 파서가 이미 디코딩된 텍스트를 또 Base64로 오해하지 않도록 헤더 수정
-      // Content-Transfer-Encoding: base64 -> 8bit
-      processed = processed.replace(/Content-Transfer-Encoding:\s*base64/gi, "Content-Transfer-Encoding: 8bit");
+    // (B) 부분적 Base64 블록 감지 및 치환
+    // 60자 이상의 연속된 Base64 문자열 블록을 찾음
+    processed = processed.replace(/([A-Za-z0-9+\/=]{60,}[\r\n\s]*)+/g, (match) => {
+      const cleaned = match.replace(/\s+/g, "");
+      if (cleaned.length < 60) return match;
+      if (!/^[A-Za-z0-9+\/=]+$/.test(cleaned)) return match;
 
-      return processed;
+      try {
+        const bin = atob(cleaned);
+        const u8 = Uint8Array.from([...bin].map(c => c.charCodeAt(0)));
+        const text = new TextDecoder("utf-8").decode(u8);
+
+        // 중요: 디코딩 결과에 바이너리 데이터(NULL char 등)가 섞여 있다면 이미지가 깨질 수 있으므로 건너뜀
+        // 제어 문자(0x00 ~ 0x08, 0x0E ~ 0x1F)가 포함되면 바이너리로 간주
+        if (/[\x00-\x08\x0e-\x1f]/.test(text) || text.includes("\uFFFD")) {
+          return match; // 원본 유지 (파서가 처리하도록)
+        }
+        
+        // 순수 텍스트라면 디코딩된 결과로 치환
+        return text;
+      } catch (e) {
+        return match;
+      }
+    });
+
+    return processed;
   }
 
-  /* --------------------------
-      MIME 본문 디코딩 (Content-Transfer-Encoding 반영)
-  -------------------------- */
-  function decodeText(node) {
+  // --------------------------------------------------------------------------
+  // 4. 노드별 콘텐츠 디코딩
+  // --------------------------------------------------------------------------
+  function decodeNodeContent(node) {
     if (!node || node.content == null) return "";
-  
-    // 1) charset 추출
-    let charset =
-      (node.charset ||
-        (node.contentType &&
-          node.contentType.params &&
-          node.contentType.params.charset) ||
-        "utf-8"
-      ).toLowerCase();
-  
-    if (charset.includes("ks_c_5601") || charset.includes("ks-c-5601")) {
-      charset = "euc-kr";
-    }
-  
-    // 2) transfer-encoding 헤더
+
+    // Charset 확인
+    let charset = (node.charset || (node.contentType?.params?.charset) || "utf-8").toLowerCase();
+    if (charset.includes("ks_c_5601") || charset.includes("ks-c-5601")) charset = "euc-kr";
+
+    // Transfer-Encoding 확인
     let encHeader = "";
-    if (typeof node.contentTransferEncoding === "string") {
-      encHeader = node.contentTransferEncoding.toLowerCase();
-    } else if (node.headers && node.headers["content-transfer-encoding"]) {
-      const v = node.headers["content-transfer-encoding"];
-      if (typeof v === "string") encHeader = v.toLowerCase();
-      else if (Array.isArray(v) && typeof v[0] === "string")
-        encHeader = v[0].toLowerCase();
-      else if (Array.isArray(v) && v[0]?.value)
-        encHeader = v[0].value.toLowerCase();
-    }
-  
-    // 3) 이미 디코딩된 바이너리(Uint8Array)인 경우
+    const cte = node.contentTransferEncoding || node.headers?.["content-transfer-encoding"];
+    if (typeof cte === "string") encHeader = cte.toLowerCase();
+    else if (Array.isArray(cte)) encHeader = (cte[0]?.value || cte[0] || "").toLowerCase();
+
+    // 1) 이미 Uint8Array인 경우 (파서가 자동 변환함)
     if (node.content instanceof Uint8Array) {
       try {
         return new TextDecoder(charset).decode(node.content);
       } catch (err) {
-        console.warn("binary decode fail:", err);
         return new TextDecoder("utf-8").decode(node.content);
       }
     }
-  
-    // 4) 문자열인 경우 raw 추출
-    let raw = "";
-    if (typeof node.content === "string") raw = node.content;
-    else return "";
-  
-    // 5) base64 처리 (preprocessRawContent에서 이미 처리했을 수 있지만 안전장치)
+
+    // 2) 문자열인 경우
+    let raw = (typeof node.content === "string") ? node.content : "";
+    if (!raw) return "";
+
+    // Base64 명시 또는 감지
     const isB64 = encHeader.includes("base64") || looksLikeBase64(raw);
-  
     if (isB64) {
       try {
         const cleaned = raw.replace(/\s+/g, "");
         const bin = atob(cleaned);
-        const bytes = Uint8Array.from([...bin].map((c) => c.charCodeAt(0)));
+        const bytes = Uint8Array.from([...bin].map(c => c.charCodeAt(0)));
         return new TextDecoder(charset).decode(bytes);
-      } catch (err) {
-        // 실패 시 그대로 raw 반환 (이미 preprocess로 디코딩되었을 수 있음)
-      }
+      } catch (err) { /* 실패 시 원본 반환 */ }
     }
-  
-    // 6) quoted-printable
+
+    // Quoted-Printable
     if (encHeader.includes("quoted-printable")) {
       let qp = raw.replace(/=\r?\n/g, "");
-      qp = qp.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) =>
-        String.fromCharCode(parseInt(hex, 16))
-      );
+      qp = qp.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => String.fromCharCode(parseInt(hex, 16)));
       return qp;
     }
-  
+
     return raw;
   }
 
-
-  /* --------------------------
-      text/plain 재귀 수집
-  -------------------------- */
-  function collectTextPlain(node, arr){
-    if(!node) return;
-
+  // --------------------------------------------------------------------------
+  // 5. 트리 순회: 텍스트 및 이미지 수집
+  // --------------------------------------------------------------------------
+  
+  // 텍스트 본문 수집 (text/plain)
+  function collectTextPlain(node, arr) {
+    if (!node) return;
     const ct = node.contentType || {};
     const type = (ct.type || "").toLowerCase();
-    const sub  = (ct.subtype || "").toLowerCase();
+    const sub = (ct.subtype || "").toLowerCase();
 
-    if(type==="text" && sub==="plain"){
-      const t = decodeText(node);
-      if(t && t.trim()) arr.push(t);
+    if (type === "text" && sub === "plain") {
+      const t = decodeNodeContent(node);
+      if (t && t.trim()) arr.push(t);
     }
-
-    if(node.childNodes){
-      for(const c of node.childNodes)
-        collectTextPlain(c, arr);
+    
+    if (node.childNodes) {
+      node.childNodes.forEach(c => collectTextPlain(c, arr));
     }
   }
 
-  /* --------------------------
-      본문 정리 (boundary/헤더/지난 메일 컷 + QP/HTML 처리)
-  -------------------------- */
-  function cleanupBody(body){
-    if(!body) return "";
+  // 이미지 수집 (image/*)
+  function collectImages(node, arr) {
+    if (!node) return;
+    const ct = node.contentType || {};
+    const type = (ct.type || "").toLowerCase();
 
-    let out = body.replace(/\r\n/g,"\n");
-    const linesRaw = out.split("\n");
+    // content-type이 image인 경우
+    if (type === "image") {
+      let content = node.content;
+      
+      // emailjs-mime-parser는 바이너리를 Uint8Array로 주거나, 가끔 배열로 줄 수 있음
+      if (content) {
+        if (!(content instanceof Uint8Array) && Array.isArray(content)) {
+          content = new Uint8Array(content);
+        }
+        
+        // 문자열 상태로 온 경우(Base64) 디코딩 시도
+        if (typeof content === "string") {
+           try {
+             const bin = atob(content.replace(/\s+/g, ""));
+             content = Uint8Array.from([...bin].map(c => c.charCodeAt(0)));
+           } catch(e) {}
+        }
+
+        if (content instanceof Uint8Array) {
+          try {
+            const mime = ct.value || "image/png"; // 기본값
+            const blob = new Blob([content], { type: mime });
+            const url = URL.createObjectURL(blob);
+            
+            // 파일명 추출
+            let name = (ct.params && ct.params.name) || 
+                       (node.headers && node.headers["content-disposition"] && node.headers["content-disposition"][0].params.filename) ||
+                       "image";
+            
+            arr.push({ name, mime, url });
+          } catch (e) {
+            console.warn("이미지 Blob 변환 실패", e);
+          }
+        }
+      }
+    }
+
+    if (node.childNodes) {
+      node.childNodes.forEach(c => collectImages(c, arr));
+    }
+  }
+
+  // --------------------------------------------------------------------------
+  // 6. 본문 정제 (Cleaning)
+  // --------------------------------------------------------------------------
+  function cleanupBody(body) {
+    if (!body) return "";
+    let out = body.replace(/\r\n/g, "\n");
+    const lines = out.split("\n");
     const cleaned = [];
 
-    for(let i=0;i<linesRaw.length;i++){
-      let t = linesRaw[i].trim();
+    for (let i = 0; i < lines.length; i++) {
+      let t = lines[i].trim();
 
-      // multipart 안내문 제거
-      if(/^\s*This is a multi-?part message in MIME format\.?/i.test(t)){
-        continue;
-      }
+      // Multipart 경계선 및 시스템 메시지 제거
+      if (/^\s*This is a multi-?part message/i.test(t)) continue;
+      if (/^[-_]{3,}=Part/i.test(t)) continue;
+      if (/^[-_]+=.*nextpart/i.test(t)) continue;
+      if (/^boundary\s*=/i.test(t)) continue;
+      if (/^content-(type|transfer|id|disposition)/i.test(t)) continue;
+      if (/^mime-version:/i.test(t)) continue;
+      
+      // 외부 메일 경고 문구 제거 (예시)
+      if (/NOTE: This email was received from an external source/i.test(t)) continue;
 
-      // Outlook 특유 boundary/part 라인 제거
-      if(/^=+Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
-      if(/^---=Part\.[A-Za-z0-9]+\..+/i.test(t)) continue;
-      if(/^[-_]{3,}=Part/i.test(t)) continue;
+      // 회신/전달 시 포함된 원본 메일 영역 제거 (Outlook 스타일)
+      if (/^[-_]{4,}\s*original message/i.test(t)) break;
+      if (/^(from|to|sent|subject):\s/i.test(t) && i > 5) break; // 헤더가 본문 중간에 나오면 컷
+      if (/^on .* wrote:$/i.test(t)) break; // Gmail 스타일 인용
 
-      // boundary & MIME 헤더류 제거
-      if(/^[-_]+=*[A-Za-z0-9+/.\-_]+$/i.test(t)) continue;
-      if(/^[-_]+=.*nextpart/i.test(t)) continue;
-      if(/^boundary\s*=/i.test(t)) continue;
-      if(/^charset\s*=/i.test(t)) continue;
-      if(/^content-(type|transfer|id|disposition)/i.test(t)) continue;
-      if(/^mime-version:/i.test(t)) continue;
-
-      // 외부메일 배너
-      if(/NOTE: This email was received from an external source/i.test(t)) continue;
-
-      // 이전 메일 Reply 구간 시작 → 여기서부터는 버림
-      if(/^[-_]{4,}\s*original message/i.test(t)) break;
-      if(/^(from|to|sent|subject):\s/i.test(t)) break;
-      if(/^on .* wrote:$/i.test(t)) break;
-      if(/^_{5,}$/i.test(t)) break;
-
-      cleaned.push(linesRaw[i]);
+      cleaned.push(lines[i]);
     }
 
     out = cleaned.join("\n");
-
-    // HTML 본문이면 텍스트만 추출
-    let trimmed = out.trim();
-    if(/<html[\s>]/i.test(trimmed)){
-      try{
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(trimmed, "text/html");
-        let text = doc.body ? doc.body.textContent || "" : "";
-        text = text.replace(/\r\n/g,"\n");
-        text = text.replace(/[ \t]+\n/g,"\n");
-        text = text.replace(/\n{3,}/g,"\n\n");
-        return text.trim();
-      }catch(e){
-        // 실패시 아래 QP 처리 계속
-        console.warn("HTML to text 변환 실패:", e);
-      }
-    }
-
-    // soft line break (= + newline)
-    out = out.replace(/=\r?\n/g, "");
-
-    // =20, =09 등의 QP escape 디코딩
+    
+    // 남은 QP 인코딩 흔적 정리 (=20, =09 등)
     out = out.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) => {
-      try { return String.fromCharCode(parseInt(hex, 16)); }
-      catch { return m; }
+      try { return String.fromCharCode(parseInt(hex, 16)); } catch { return m; }
     });
+    // Soft line break 제거
+    out = out.replace(/=\n/g, "");
 
-    // 빈 줄 정리
-    out = out.replace(/\n{3,}/g,"\n\n");
-    return out.trim();
+    // 3개 이상 연속 줄바꿈 축소
+    return out.replace(/\n{3,}/g, "\n\n").trim();
   }
 
-  /* --------------------------
-      Base64 본문 디코딩 (fallback용)
-  -------------------------- */
-  function tryDecodeBase64(text){
-    if(!text) return text;
-
-    const trimmed = text.trim();
-
-    const isLikely =
-      /^[A-Za-z0-9+\/=\r\n]+$/.test(trimmed) &&
-      trimmed.length > 50 &&
-      !trimmed.includes(" ") &&
-      !trimmed.includes(":");
-
-    if(!isLikely) return text;
-
-    try{
-      const cleaned = trimmed.replace(/\s+/g,"");
-      const decoded = atob(cleaned);
-
-      if(/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(decoded)) return text;
-
-      return decoded;
-    }catch(e){
-      return text;
-    }
+  // HTML 이스케이프
+  function esc(s) {
+    return String(s || "").replace(/[&<>]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]));
   }
-  /* --------------------------
-      EML 파서 (핵심)
-  -------------------------- */
-  function parseEml(raw, filename){
+  
+  function fmtDate(d) {
+    if (!(d instanceof Date) || isNaN(d)) return "날짜 정보 없음";
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ` +
+           `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  }
+
+  // --------------------------------------------------------------------------
+  // 7. EML 파싱 진입점
+  // --------------------------------------------------------------------------
+  function parseEml(raw, filename) {
+    // 헤더와 본문 분리 (Fallback용)
     const parts = raw.split(/\r?\n\r?\n/);
-    let headerText = parts[0] || "";
+    let headerBlock = parts[0] || "";
     let bodyFallback = parts.slice(1).join("\n\n") || "";
+    headerBlock = headerBlock.replace(/(\r?\n)(\t| )+/g, " "); // 접힌 헤더 펼치기
 
-    headerText = headerText.replace(/(\r?\n)(\t| )+/g," ");
+    // 정규식으로 헤더 추출 함수
+    const getH = (n) => {
+      const m = headerBlock.match(new RegExp(`^${n}\\s*:\\s*(.+)$`, "im"));
+      return m ? m[1].trim() : "";
+    };
 
-    function getHeader(name){
-      const re = new RegExp("^"+name+"\\s*:\\s*(.+)$","im");
-      const m = headerText.match(re);
-      return m?m[1].trim():"";
-    }
-
-    let subject = decodeMimeWord(getHeader("Subject") || "(제목 없음)");
-    let fromRaw = getHeader("From");
-    let toRaw   = getHeader("To");
-    let ccRaw   = getHeader("Cc");
-    let dateStr = getHeader("Date");
+    let subject = decodeMimeWord(getH("Subject") || "(제목 없음)");
+    let fromRaw = getH("From");
+    let toRaw = getH("To");
+    let ccRaw = getH("Cc");
+    let dateStr = getH("Date");
     let dateObj = dateStr ? new Date(dateStr) : new Date(NaN);
 
     let bodyText = "";
+    let images = [];
 
-    try{
-      const root = parseMime(raw);
+    try {
+      // 라이브러리 파서 실행
+      const parser = new MimeParser();
+      parser.write(raw);
+      parser.end();
+      const root = parser.node;
 
-      const h = root.headers || {};
-      const pick = key=>{
-        const v = h[key];
-        if(!v) return "";
-        if(Array.isArray(v)){
-          if(typeof v[0]==="string") return v[0];
-          if(typeof v[0].value==="string") return v[0].value;
-        }
-        return "";
+      // 라이브러리가 파싱한 헤더 우선 사용
+      const pick = k => {
+        const v = root.headers?.[k];
+        if (!v) return null;
+        if (Array.isArray(v)) return v[0]?.value || v[0];
+        return v;
       };
-
+      
       const sj = pick("subject");
       const fr = pick("from");
       const tr = pick("to");
       const cr = pick("cc");
       const dr = pick("date");
 
-      if(sj) subject = decodeMimeWord(sj);
-      if(fr) fromRaw = fr;
-      if(tr) toRaw   = tr;
-      if(cr) ccRaw   = cr;
-      if(dr){
-        const d2 = new Date(dr);
-        if(!isNaN(d2)) dateObj = d2;
+      if (sj) subject = decodeMimeWord(sj);
+      if (fr) fromRaw = fr;
+      if (tr) toRaw = tr;
+      if (cr) ccRaw = cr;
+      if (dr) {
+        const d = new Date(dr);
+        if (!isNaN(d)) dateObj = d;
       }
 
+      // 텍스트 수집
       const plains = [];
       collectTextPlain(root, plains);
-
-      if(plains.length){
-        plains.sort((a,b)=>b.length - a.length);
+      if (plains.length > 0) {
+        plains.sort((a, b) => b.length - a.length); // 가장 긴 텍스트가 본문일 확률 높음
         bodyText = plains[0];
-      }else{
+      } else {
         bodyText = bodyFallback;
       }
 
-    }catch(e){
-      console.warn("emailjs-mime-parser 실패 → fallback 본문 사용:", e);
+      // 이미지 수집
+      collectImages(root, images);
+
+    } catch (e) {
+      console.warn("MimeParser Error (using fallback):", e);
       bodyText = bodyFallback;
+      // Fallback 시에는 이미지 추출 불가
     }
 
-    // 혹시 남은 base64 인코딩 텍스트가 있으면 한번 더 디코딩 시도
-    bodyText = tryDecodeBase64(bodyText);
-
-    // MIME boundary/헤더 제거 + 지난 메일 내용 컷 + QP/HTML 정리
+    // 최종 정리
     bodyText = cleanupBody(bodyText);
-
-    const fromList = parseAddressList(fromRaw);
-    const toList   = parseAddressList(toRaw);
-    const ccList   = parseAddressList(ccRaw);
+    
+    // 미리보기 텍스트 생성
+    const preview = bodyText.slice(0, 300).replace(/\s+/g, " ") + (bodyText.length > 300 ? "..." : "");
 
     return {
-      sourceType:"eml",
+      sourceType: "eml",
       filename,
       subject,
-      from: fromList,
-      to:   toList,
-      cc:   ccList,
+      from: parseAddressList(fromRaw),
+      to: parseAddressList(toRaw),
+      cc: parseAddressList(ccRaw),
       body: bodyText,
+      images, // Blob URL 배열
       dateStr,
       dateObj,
-      preview: makePreview(bodyText),
-      threadKey: normalizeSubject(subject)
+      preview,
+      // 스레드 그룹핑용 키 (Re: Fwd: 제거된 제목)
+      threadKey: subject.toLowerCase().replace(/^\s*(re|fw|fwd|답장|전달|회신)(\s*:\s*)?/gi, "").replace(/^\[.*?\]\s*/, "").trim()
     };
   }
 
-  /* --------------------------
-      케이스 데이터 구조
-  -------------------------- */
-  let casesMeta=[];    // [{id,name}]
-  let caseData={};     // id → {id,name,emails}
-  let currentCaseId=null;
 
-  let allEmails=[];
-  let threads=[];
-  let currentView="timeline";
-  let currentThreadKey=null;
+  // --------------------------------------------------------------------------
+  // 8. 애플리케이션 상태 및 UI 제어
+  // --------------------------------------------------------------------------
+  let casesMeta = [];      // [{id, name}]
+  let caseData = {};       // { id: {id, name, emails: []} }
+  let currentCaseId = null;
+  let allEmails = [];      // 현재 케이스의 이메일 목록
+  let threads = [];        // 스레드별 그룹핑 데이터
+  let currentView = "timeline"; // 'timeline' or 'thread'
+  let currentThreadKey = null;
 
-  /* --------------------------
-      파일 처리 + 드래그드랍
-  -------------------------- */
-  async function handleFiles(files){
-    if(!currentCaseId){
-      alert("먼저 케이스를 선택하거나 생성하세요.");
+  // DOM 요소 참조
+  const elFileInput = document.getElementById("fileInput");
+  const elDropZone = document.getElementById("dropZone");
+  const elSearch = document.getElementById("searchInput");
+  const elMailContainer = document.getElementById("mailContainer");
+  const elStats = document.getElementById("statsBox");
+  const elCaseList = document.getElementById("caseList");
+  const elThreadList = document.getElementById("threadList");
+  const elViewInfo = document.getElementById("viewInfo");
+
+  // 파일 처리 핸들러
+  async function handleFiles(files) {
+    if (!currentCaseId) {
+      alert("먼저 케이스를 선택하거나 생성해주세요.");
       return;
     }
+    
+    const targetEmails = caseData[currentCaseId].emails || [];
+    let processedCount = 0;
+    const total = files.length;
+    
+    // UI 업데이트 (로딩 중 표시)
+    elDropZone.textContent = "파일 처리 중...";
 
-    allEmails = caseData[currentCaseId]?.emails || [];
-
-    let remain = files.length;
-    if(!remain) return;
-
-    for(const file of files){
-      const name = file.name;
-      const ext  = name.split(".").pop().toLowerCase();
-
-      if(ext !== "eml"){
-        alert(name + " : 이 버전은 .eml만 지원합니다. (.msg는 사전에 .eml로 변환해주세요)");
-        remain--;
+    for (const file of files) {
+      if (!file.name.toLowerCase().endsWith(".eml")) {
+        console.warn("Skipped non-eml file:", file.name);
+        processedCount++;
         continue;
       }
 
       const reader = new FileReader();
-      reader.onload = ev => {
-        try{
-          let raw = ev.target.result;
-          
-          // [수정됨] 제일 먼저 Base64 디코딩 수행
-          raw = preprocessRawContent(raw);
-
-          const mail = parseEml(raw, name);
-          allEmails.push(mail);
-        }catch(e){
-          console.error("EML 파싱 실패:", name, e);
-        }finally{
-          remain--;
-          if(remain===0){
-            caseData[currentCaseId].emails = allEmails;
-            postProcess();
-            ghPut(`cases/${currentCaseId}.json`,caseData[currentCaseId],"update case")
-              .catch(err=>alert("GitHub 저장 실패: "+err.message));
+      
+      // Promise로 감싸서 순차/병렬 처리 제어
+      await new Promise(resolve => {
+        reader.onload = (e) => {
+          try {
+            let raw = e.target.result;
+            // 1) 텍스트 Base64 선처리 (이미지는 건드리지 않음)
+            raw = preprocessRawContent(raw);
+            // 2) 파싱
+            const mail = parseEml(raw, file.name);
+            targetEmails.push(mail);
+          } catch (err) {
+            console.error("File Parse Error:", file.name, err);
           }
-        }
-      };
-      reader.readAsText(file,"utf-8");
+          resolve();
+        };
+        reader.onerror = resolve;
+        reader.readAsText(file, "utf-8"); // 일단 UTF-8로 읽고 내부에서 Base64 디코딩
+      });
+      processedCount++;
     }
+
+    // 처리 완료 후 저장
+    caseData[currentCaseId].emails = targetEmails;
+    allEmails = targetEmails;
+    
+    // GitHub 저장 시도
+    try {
+      await ghPut(`cases/${currentCaseId}.json`, caseData[currentCaseId], "add emails");
+      // 메타데이터에 파일 수 등 업데이트하고 싶으면 여기서 처리 (생략 가능)
+    } catch (e) {
+      alert("GitHub 저장 실패: " + e.message);
+    }
+
+    // UI 복구 및 렌더링
+    elDropZone.innerHTML = "이곳에 <b>.eml</b> 파일을 드래그해서 놓으세요<br><span style='font-size:11px;color:#9ca3af'>(MSG는 사전에 EML로 변환 필요)</span>";
+    postProcess();
   }
 
-  /* --------------------------
-      후처리 / 렌더링
-  -------------------------- */
-  function postProcess(){
-    if(!allEmails.length){
-      document.getElementById("statsBox").textContent = "메일 없음";
-      document.getElementById("threadList").innerHTML = "";
-      document.getElementById("mailContainer").innerHTML = "";
-      document.getElementById("summaryContainer").innerHTML = "";
-      document.getElementById("viewInfo").textContent = "";
-      return;
-    }
-
-    allEmails.sort((a,b)=>{
-      const t1 = (a.dateObj instanceof Date && !isNaN(a.dateObj)) ? a.dateObj.getTime() : 0;
-      const t2 = (b.dateObj instanceof Date && !isNaN(b.dateObj)) ? b.dateObj.getTime() : 0;
+  // 데이터 후처리 및 화면 갱신
+  function postProcess() {
+    // 날짜순 정렬
+    allEmails.sort((a, b) => {
+      const t1 = a.dateObj ? a.dateObj.getTime() : 0;
+      const t2 = b.dateObj ? b.dateObj.getTime() : 0;
       return t1 - t2;
     });
 
+    // 스레드 그룹핑
     const map = new Map();
-    allEmails.forEach(m=>{
-      const k=m.threadKey || "(no-subject)";
-      if(!map.has(k)) map.set(k,{threadKey:k,subject:m.subject,items:[]});
+    allEmails.forEach(m => {
+      const k = m.threadKey || "(제목 없음)";
+      if (!map.has(k)) map.set(k, { threadKey: k, subject: m.subject, items: [] });
       map.get(k).items.push(m);
     });
-    threads=[...map.values()];
+    threads = Array.from(map.values());
 
     updateStats();
-    renderThreads();
-    renderView();
+    renderThreadList();
+    renderMainView();
   }
 
-  function updateStats(){
-    const statsBox = document.getElementById("statsBox");
-    statsBox.innerHTML = `메일: <b>${allEmails.length}</b>개<br>스레드: <b>${threads.length}</b>개`;
+  function updateStats() {
+    elStats.innerHTML = `총 메일: <b>${allEmails.length}</b>개 / 스레드: <b>${threads.length}</b>개`;
   }
 
-  function renderThreads(){
-    const el = document.getElementById("threadList");
-    el.innerHTML = "";
-    threads.forEach(t=>{
-      const div=document.createElement("div");
-      div.className="thread-item"+(t.threadKey===currentThreadKey?" active":"");
-      div.textContent=`${t.subject} (${t.items.length})`;
-      div.onclick=()=>{
-        currentThreadKey=t.threadKey;
-        currentView="thread";
-        renderView();
-        renderThreads();
+  function renderThreadList() {
+    elThreadList.innerHTML = "";
+    threads.forEach(th => {
+      const div = document.createElement("div");
+      div.className = "thread-item" + (currentView === "thread" && th.threadKey === currentThreadKey ? " active" : "");
+      div.textContent = `${th.subject} (${th.items.length})`;
+      div.onclick = () => {
+        currentThreadKey = th.threadKey;
+        currentView = "thread";
+        document.getElementById("btnThread").classList.add("active");
+        document.getElementById("btnTimeline").classList.remove("active");
+        renderThreadList(); // active 클래스 갱신 위해 재호출
+        renderMainView();
       };
-      el.appendChild(div);
+      elThreadList.appendChild(div);
     });
   }
 
-  function renderView(){
-    let list=[...allEmails];
-    if(currentView==="thread" && currentThreadKey){
-      const th=threads.find(x=>x.threadKey===currentThreadKey);
-      list=th?th.items:[];
-    }
-
-    const kw = document.getElementById("searchInput").value.toLowerCase().trim();
-    if(kw){
-      list = list.filter(m=>{
-        const addrStr =
-          renderAddressList(m.from) +
-          renderAddressList(m.to) +
-          renderAddressList(m.cc || []);
-        return (m.subject + m.body + addrStr).toLowerCase().includes(kw);
-      });
-    }
-
-    const viewInfo = document.getElementById("viewInfo");
-    if(list.length > 0){
-      viewInfo.innerHTML = `
-        <div style="font-size:16px;font-weight:600;margin-bottom:10px;padding:6px 0;">
-          ${esc(list[0].subject)}
-        </div>
-        <div style="font-size:12px;color:#555;">${currentView==="timeline"?"전체 타임라인":"스레드"}</div>
-      `;
+  function renderMainView() {
+    let list = [...allEmails];
+    
+    // 뷰 모드 필터링
+    if (currentView === "thread" && currentThreadKey) {
+      const th = threads.find(t => t.threadKey === currentThreadKey);
+      list = th ? th.items : [];
+      elViewInfo.textContent = `📂 스레드: ${th ? th.subject : ""}`;
     } else {
-      viewInfo.innerHTML = "";
+      elViewInfo.textContent = "🕒 전체 타임라인";
     }
 
-    const mc=document.getElementById("mailContainer");
-    mc.innerHTML="";
+    // 검색어 필터링
+    const kw = elSearch.value.trim().toLowerCase();
+    if (kw) {
+      list = list.filter(m => {
+        const txt = (m.subject + m.body + renderAddresses(m.from) + renderAddresses(m.to)).toLowerCase();
+        return txt.includes(kw);
+      });
+      elViewInfo.textContent += ` (검색결과: ${list.length}건)`;
+    }
 
-    list.forEach((m,i)=>{
-      const d=document.createElement("div");
-      d.className="mail-card";
+    elMailContainer.innerHTML = "";
+    if (list.length === 0) {
+      elMailContainer.innerHTML = "<div style='text-align:center; padding:20px; color:#888;'>표시할 메일이 없습니다.</div>";
+      return;
+    }
 
-      d.innerHTML=`
+    list.forEach((m, idx) => {
+      const card = document.createElement("div");
+      card.className = "mail-card";
+      
+      // 이미지 HTML 구성
+      let imagesHtml = "";
+      if (m.images && m.images.length > 0) {
+        imagesHtml = `<div class="mail-images">`;
+        m.images.forEach(img => {
+          imagesHtml += `
+            <div class="mail-img-box">
+              <a href="${img.url}" target="_blank">
+                <img src="${img.url}" title="${esc(img.name)}" loading="lazy" />
+              </a>
+              <div class="img-name">${esc(img.name)}</div>
+            </div>`;
+        });
+        imagesHtml += `</div>`;
+      }
+
+      card.innerHTML = `
         <div class="mail-header">
-          <div class="mail-meta">
-            From: ${esc(renderAddressList(m.from))}<br>
-            To: ${esc(renderAddressList(m.to))}
+          <div class="mail-info">
+            <div><span class="mail-label">From:</span> ${esc(renderAddresses(m.from))}</div>
+            <div><span class="mail-label">To:</span> ${esc(renderAddresses(m.to))}</div>
+            ${m.cc && m.cc.length ? `<div><span class="mail-label">CC:</span> ${esc(renderAddresses(m.cc))}</div>` : ""}
+            <div style="margin-top:4px; font-weight:600; font-size:14px;">${esc(m.subject)}</div>
           </div>
-          <div class="mail-date">${esc(fmtDate(m.dateObj))}</div>
+          <div class="mail-date">${fmtDate(m.dateObj)}</div>
         </div>
-
+        
         <div class="mail-body-preview">
-          ${esc(m.preview)} <span class="clickable" id="toggle_${i}">더보기</span>
+          ${esc(m.preview)}
+          <span class="clickable" onclick="document.getElementById('full_body_${idx}').style.display='block'; this.style.display='none'">...더보기</span>
+        </div>
+        
+        <div id="full_body_${idx}" class="mail-body-full">
+          ${esc(m.body)}
+          ${imagesHtml}
         </div>
 
-        <div class="mail-body-full" id="full_${i}">${esc(m.body)}</div>
-
-        <div style="margin-top:6px">
-          <span class="pill">${esc(m.filename)}</span>
-          <span class="pill">EML</span>
+        <div style="margin-top: 12px; border-top: 1px solid #f3f4f6; padding-top: 8px;">
+           <span class="pill">📄 ${esc(m.filename)}</span>
+           ${m.images.length > 0 ? `<span class="pill">🖼️ 이미지 ${m.images.length}개</span>` : ""}
         </div>
       `;
-
-      mc.appendChild(d);
-
-      const toggle = document.getElementById(`toggle_${i}`);
-      const full   = document.getElementById(`full_${i}`);
-
-      toggle.onclick=()=>{
-        const show = full.style.display==="block";
-        full.style.display = show?"none":"block";
-        toggle.textContent = show?"더보기":"접기";
-      };
+      elMailContainer.appendChild(card);
     });
   }
 
-  /* --------------------------
-      케이스 불러오기 / 생성
-  -------------------------- */
-  async function loadCases(){
-    try{
+  // --------------------------------------------------------------------------
+  // 9. 케이스 관리 (GitHub 연동)
+  // --------------------------------------------------------------------------
+  async function loadCases() {
+    try {
       const idx = await ghGet("cases/index.json");
-      if(!idx){
-        casesMeta=[];caseData={};currentCaseId=null;
-        renderCaseList();
-        return;
+      if (!idx) {
+        // 인덱스 파일이 없으면 초기화
+        casesMeta = [];
+        caseData = {};
+        currentCaseId = null;
+      } else {
+        casesMeta = idx;
+        caseData = {};
+        currentCaseId = null;
       }
-      casesMeta=idx;
-      caseData={};
-      currentCaseId=null;
       renderCaseList();
-    }catch(e){alert("케이스 목록 불러오기 실패: "+e.message);}
+      alert("케이스 목록을 불러왔습니다.");
+    } catch (e) {
+      alert("케이스 목록 로드 실패: " + e.message);
+    }
   }
 
-  function renderCaseList(){
-    const el=document.getElementById("caseList");
-    el.innerHTML="";
-    casesMeta.forEach(c=>{
-      const div=document.createElement("div");
-      div.className="case-item"+(c.id===currentCaseId?" active":"");
-      div.textContent=c.name;
-      div.onclick=()=>selectCase(c.id);
-      el.appendChild(div);
+  function renderCaseList() {
+    elCaseList.innerHTML = "";
+    if (casesMeta.length === 0) {
+      elCaseList.innerHTML = "<div style='padding:8px; font-size:11px; color:#888;'>생성된 케이스 없음</div>";
+      return;
+    }
+    casesMeta.forEach(c => {
+      const div = document.createElement("div");
+      div.className = "case-item" + (c.id === currentCaseId ? " active" : "");
+      div.textContent = c.name;
+      div.onclick = () => selectCase(c.id);
+      elCaseList.appendChild(div);
     });
   }
 
-  async function selectCase(id){
-    currentCaseId=id;
+  async function selectCase(id) {
+    currentCaseId = id;
     renderCaseList();
-    try{
-      const obj=await ghGet(`cases/${id}.json`);
-      if(obj){
-        caseData[id]=obj;
-        allEmails=obj.emails||[];
-        postProcess();
+    
+    // 데이터 로드
+    if (!caseData[id]) {
+      try {
+        const data = await ghGet(`cases/${id}.json`);
+        if (data) {
+          caseData[id] = data;
+          allEmails = data.emails || [];
+          postProcess();
+        }
+      } catch (e) {
+        alert("케이스 데이터 로드 실패: " + e.message);
       }
-    }catch(e){alert("케이스 로딩 실패 "+e.message);}
+    } else {
+      allEmails = caseData[id].emails || [];
+      postProcess();
+    }
   }
 
-  async function addCase(){
-    const name=prompt("케이스 이름을 입력하세요:");
-    if(!name) return;
-    const id="case_"+Date.now();
-
-    casesMeta.push({id,name});
-    caseData[id]={id,name,emails:[]};
-    currentCaseId=id;
-
-    await ghPut("cases/index.json",casesMeta,"case index update");
-    await ghPut(`cases/${id}.json`,caseData[id],"create case");
-
-    renderCaseList();
+  async function addCase() {
+    const name = prompt("새 케이스 이름을 입력하세요:");
+    if (!name) return;
+    const id = "case_" + Date.now();
+    
+    casesMeta.push({ id, name });
+    caseData[id] = { id, name, emails: [] };
+    
+    // 인덱스 및 파일 생성 저장
+    try {
+      await ghPut("cases/index.json", casesMeta, "add case index");
+      await ghPut(`cases/${id}.json`, caseData[id], "create case file");
+      currentCaseId = id;
+      renderCaseList();
+      // 화면 클리어
+      allEmails = [];
+      postProcess();
+    } catch (e) {
+      alert("케이스 생성 저장 실패: " + e.message);
+    }
   }
 
-  /* --------------------------
-      이벤트 바인딩
-  -------------------------- */
-  const fileInput   = document.getElementById("fileInput");
-  const dropZone    = document.getElementById("dropZone");
-  const searchInput = document.getElementById("searchInput");
+  // --------------------------------------------------------------------------
+  // 10. 이벤트 리스너 등록
+  // --------------------------------------------------------------------------
+  
+  // GitHub 토큰 저장
+  document.getElementById("btnSaveGh").onclick = () => {
+    const t = document.getElementById("ghToken").value.trim();
+    if (t) {
+      github.token = t;
+      localStorage.setItem("github_token", t);
+      alert("토큰이 저장되었습니다. (브라우저 로컬스토리지)");
+    }
+  };
+
+  // 초기 토큰 로드
+  const savedToken = localStorage.getItem("github_token");
+  if (savedToken) {
+    github.token = savedToken;
+    document.getElementById("ghToken").value = savedToken;
+  }
+
+  document.getElementById("btnLoadCases").onclick = loadCases;
+  document.getElementById("btnAddCase").onclick = addCase;
+
+  // 뷰 모드 전환
   const btnTimeline = document.getElementById("btnTimeline");
-  const btnThread   = document.getElementById("btnThread");
+  const btnThread = document.getElementById("btnThread");
 
-  document.getElementById("btnSaveGh").onclick=()=>{
-    github.token = document.getElementById("ghToken").value.trim();
-    localStorage.setItem("github_token",github.token);
-    alert("GitHub 토큰을 저장했습니다.");
+  btnTimeline.onclick = () => {
+    currentView = "timeline";
+    currentThreadKey = null;
+    btnTimeline.classList.add("active");
+    btnThread.classList.remove("active");
+    renderThreadList();
+    renderMainView();
   };
-  document.getElementById("btnLoadCases").onclick=loadCases;
-  document.getElementById("btnAddCase").onclick=addCase;
-
-  btnTimeline.onclick=()=>{
-    currentView="timeline";currentThreadKey=null;
-    btnTimeline.classList.add("active");btnThread.classList.remove("active");
-    renderView();
-  };
-  btnThread.onclick=()=>{
-    currentView="thread";
-    btnThread.classList.add("active");btnTimeline.classList.remove("active");
-    renderView();
+  btnThread.onclick = () => {
+    currentView = "thread";
+    btnThread.classList.add("active");
+    btnTimeline.classList.remove("active");
+    renderMainView();
   };
 
-  searchInput.oninput=renderView;
-  document.getElementById("btnClearSearch").onclick=()=>{
-    searchInput.value="";renderView();
+  // 검색
+  elSearch.oninput = renderMainView;
+  document.getElementById("btnClearSearch").onclick = () => {
+    elSearch.value = "";
+    renderMainView();
   };
 
-  fileInput.onchange=(e)=>handleFiles([...e.target.files]);
+  // 파일 입력 (버튼)
+  elFileInput.onchange = (e) => handleFiles([...e.target.files]);
 
-  window.ondragover=e=>{e.preventDefault();dropZone.classList.add("dragover");};
-  window.ondragleave=()=>dropZone.classList.remove("dragover");
-  window.ondrop=e=>{
-    e.preventDefault();dropZone.classList.remove("dragover");
+  // 파일 드래그 앤 드롭
+  window.ondragover = (e) => { e.preventDefault(); elDropZone.classList.add("dragover"); };
+  window.ondragleave = () => elDropZone.classList.remove("dragover");
+  window.ondrop = (e) => {
+    e.preventDefault();
+    elDropZone.classList.remove("dragover");
     handleFiles([...e.dataTransfer.files]);
   };
 
-  // 초기 토큰 로딩
-  (function(){
-    const t=localStorage.getItem("github_token");
-    if(t){
-      github.token=t;
-      document.getElementById("ghToken").value=t;
-    }
-  })();
 </script>
-
 </body>
 </html>
