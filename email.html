@@ -50,11 +50,16 @@
       이곳에 <b>.eml</b> 파일을 드래그해서 놓으세요
     </div>
   </section>
+  <section>
+    <div id="fileStatus" style="font-size:14px;color:#374151;margin-top:10px;"></div>
+  </section>
 </main>
 
 <script type="module">
   async function handleFiles(files) {
     if (!files.length) return;
+
+    let remain = files.length;
 
     for (const file of files) {
       const name = file.name;
@@ -62,16 +67,23 @@
 
       if (ext !== "eml") {
         alert(name + " : 이 버전은 .eml만 지원합니다.");
+        remain--;
         continue;
       }
 
       const reader = new FileReader();
-      reader.onload = ev => {
+      reader.onload = (ev) => {
         try {
           let raw = ev.target.result;
-          // 이메일 파싱 및 처리하는 코드 제거
+          document.getElementById("fileStatus").textContent = `${name} 파일이 성공적으로 업로드되었습니다.`;
         } catch (e) {
           console.error("EML 파싱 실패:", name, e);
+          document.getElementById("fileStatus").textContent = `파일 업로드에 실패했습니다: ${name}`;
+        } finally {
+          remain--;
+          if (remain === 0) {
+            document.getElementById("fileStatus").textContent += ` 총 ${files.length}개의 파일 처리 완료.`;
+          }
         }
       };
       reader.readAsText(file, "utf-8");
@@ -79,6 +91,9 @@
   }
 
   const fileInput = document.getElementById("fileInput");
+  const dropZone = document.getElementById("dropZone");
+  const fileStatus = document.getElementById("fileStatus");
+
   fileInput.onchange = (e) => handleFiles([...e.target.files]);
 
   window.ondragover = (e) => { e.preventDefault(); dropZone.classList.add("dragover"); };
