@@ -1,5 +1,70 @@
 {
   "id": "case_1764913393565",
   "name": "륜`1232",
-  "emails": []
+  "emails": [
+    {
+      "sourceType": "eml",
+      "filename": "20250415_받은편지함_shin86@etechsystem.co.kr_Re Case80026785 High.eml",
+      "subject": "=?utf-8?B?Re: {Case#80026785} ##High - P2 - SAMSUNG ELECTRONICS CO,.LTD-Ismanagement via API possible in WEB VPM??=",
+      "from": [
+        {
+          "name": "박동석",
+          "email": "dsp0701@etechsystem.co.kr"
+        }
+      ],
+      "to": [
+        {
+          "name": "홍진영",
+          "email": "kevin@etechsystem.co.kr"
+        },
+        {
+          "name": "",
+          "email": "broadcomsupport@apaccms.westcon.com"
+        }
+      ],
+      "cc": [
+        {
+          "name": "SOL기술",
+          "email": "symantec-blue@etechsystem.co.kr"
+        }
+      ],
+      "body": "Hi, Team\n\nThank you for your support.\n\nI was thinking the same thing about the contents, but I opened a case because of the customer's request. For now, I understand that both are impossible.\nQ1) Are there any plans to support these in the future?\nQ2) Aren't only simple tasks such as creating and modifying objects possible through REST API in MC? Can all the functions provided by VPM be managed through REST API?\n\nRegards,\n\n========================================\n보낸사람 : broadcomsupport@apaccms.westcon.com\n받는사람 : '홍진영'<kevin@etechsystem.co.kr>\n참조 : 'SOL기술'<symantec-blue@etechsystem.co.kr>\n보낸일시 : 2025-04-14 15:58:13\n\n제목 : {Case#80026785} ##High - P2 - SAMSUNG ELECTRONICS CO,.LTD-Ismanagement via API possible in WEB VPM?\n\nHi Jinyoung Hong,\n\nRegarding your question please refer below for the answer:\n\nQ1) The existing Java VPM has changed to support WEB VPM.Is it possible to manage via API in WEB VPM?\nThe ProxySG does not have APIs that fetch data from the ProxySG or integrate with third-party products.Workaround : 1. Use the Management Center REST API.\nManagement Center can connect to the ProxySG to apply changes. See the documentation on the REST API: Management Center REST API 2. The ProxySG has a number of read-only advanced URL like https://<ProxySG_IP_address>:8082/sysinfo or https://<ProxySG_IP_address>:8082/policy/ \n\nThese are not APIs but the URLs can be used to fetch information about the proxy.  3. The ProxySG's SSH interface can be utilized to make changes in the proxy configuration using the CLI. Using SSH it is possible to script commands for automation. Refer to the CLI documentation: ProxySG Command Line ReferenceProxySG API to gather data and integrate with other reporting products\n\nQ2) Can't the policy be reflected in Excel format instead of XML format in WEB VPM?\n\nCurrently ProxySG do not support the option to export policy to excel format. If you noticed before, in the policy trace, the policy is structured as a line of command which is check one by one with MISS and MATCH status. As ProxySG are built to use multiple layer like forwarding, authentication and access with different format and function, it almost impossible to create a general rule which can fit into Excel row and column. \n\nRegards,\nFauzee---=Part.48e3.4031d86c259b6bb1.19634e26cad.f0d8653e56a1d5b4=-\n\nHi, TeamThank you for your support.I was thinking the same thing about the contents, but I opened a case because of the customer's request. For now, I understand that both are impossible. Q1) Are there any plans to support these in the future? Q2) Aren't only simple tasks such as creating and modifying objects possible through REST API in MC? Can all the functions provided by VPM be managed through REST API?Regards,\n========================================보낸사람 : broadcomsupport@apaccms.westcon.com받는사람 : '홍진영'<kevin@etechsystem.co.kr>참조 : 'SOL기술'<symantec-blue@etechsystem.co.kr>보낸일시 : 2025-04-14 15:58:13제목 : {Case#80026785} ##High - P2 - SAMSUNG ELECTRONICS CO,.LTD-Ismanagement via API possible in WEB VPM?Hi Jinyoung Hong,Regarding your question please refer below for the answer:Q1) The existing Java VPM has changed to support WEB VPM.Is it possible to manage via API in WEB VPM?The ProxySG does not have APIs that fetch data from the ProxySG or integrate with third-party products.Workaround : 1. Use the Management Center REST API.Management Center can connect to the ProxySG to apply changes. See the documentation on the REST API: Management Center REST API 2. The ProxySG has a number of read-only advanced URL like https://<ProxySG_IP_address>:8082/sysinfo or https://<ProxySG_IP_address>:8082/policy/ These are not APIs but the URLs can be used to fetch information about the proxy.  3. The ProxySG's SSH interface can be utilized to make changes in the proxy configuration using the CLI. Using SSH it is possible to script commands for automation. Refer to the CLI documentation: ProxySG Command Line ReferenceProxySG API to gather data and integrate with other reporting productsQ2) Can't the policy be reflected in Excel format instead of XML format in WEB VPM?Currently ProxySG do not support the option to export policy to excel format. If you noticed before, in the policy trace, the policy is structured as a line of command which is check one by one with MISS and MATCH status. As ProxySG are built to use multiple layer like forwarding, authentication and access with different format and function, it almost impossible to create a general rule which can fit into Excel row and column. Regards,Fauzee---=Part.48e2.a21153daa5ae4d10.19634e26ca8.b092da7cb33dbb39=-\n\nKjF48OB/PMv+uVw+ToMAAAAASUVORK5CYII=",
+      "dateStr": "Tue, 15 Apr 2025 00:19:36 +0900",
+      "dateObj": "2025-04-14T15:19:36.000Z",
+      "preview": "Hi, Team Thank you for your support. I was thinking the same thing about the contents, but I opened a case because of the customer's request. For now, I understand that both are impossible.",
+      "threadKey": "=?utf-8?b?re: {case#80026785} ##high - p2 - samsung electronics co,.ltd-ismanagement via api possible in web vpm??="
+    },
+    {
+      "sourceType": "eml",
+      "filename": "20250415_받은편지함_shin86@etechsystem.co.kr_(11)RE Case80026785 High.eml",
+      "subject": "RE: {Case#80026785} ##High - P2 - SAMSUNG ELECTRONICS CO,.LTD-Is management via API possible in WEB VPM?",
+      "from": [
+        {
+          "name": "박동석",
+          "email": "dsp0701@etechsystem.co.kr"
+        }
+      ],
+      "to": [
+        {
+          "name": "",
+          "email": "broadcomsupport.apac@westcon.com"
+        },
+        {
+          "name": "",
+          "email": "kevin@etechsystem.co.kr"
+        }
+      ],
+      "cc": [
+        {
+          "name": "",
+          "email": "symantec-blue@etechsystem.co.kr"
+        }
+      ],
+      "body": "Hi, TeamThank you for your =\nsupport.I was thinking the same thing about the contents, but I =\nopened a case because of the customer's request. For now, I understand =\nthat both are impossible.Q1) Are there any plans to support these in =\nthe future?Q2) Aren't only simple tasks such as creating and =\nmodifying objects possible through REST API in MC? Can all the functions =\nprovided by VPM be managed through REST =\nAPI?Regards,     From:<=\n/b> =\nbroadcomsupport@apaccms.westcon.com =\n[mailto:broadcomsupport@apaccms.westcon.com] Sent: Monday, =\nApril 14, 2025 3:58 PMTo: =\nkevin@etechsystem.co.krCc: =\nsymantec-blue@etechsystem.co.krSubject: {Case#80026785} =\n##High - P2 - SAMSUNG ELECTRONICS CO,.LTD-Is management via API possible =\nin WEB VPM? Hi Jinyoung Hong,Regarding your question please =\nrefer below for the answer:Q=\n1) The existing Java VPM has changed to support WEB =\nVPM.Is it possible to =\nmanage via API in WEB VPM?The ProxySG =\ndoes not have APIs that fetch data from the ProxySG or integrate with =\nthird-party products.Workaround : 1. Use the Management Center REST =\nAPI.Management Center =\ncan connect to the ProxySG to apply =\nchanges. See the =\ndocumentation on the REST API: Management Center REST =\nAPI 2. The =\nProxySG has a number of read-only advanced URL like =\nhttps://<ProxySG_IP_address>:8082/sysinfo or =\nhttps://<ProxySG_IP_address>:8082/policy/ These are =\nnot APIs but the URLs can be used to fetch information about the =\nproxy.  3. The =\nProxySG's SSH interface can be utilized to make changes in the proxy =\nconfiguration using the CLI. Using SSH it is possible to script commands =\nfor automation. Refer =\nto the CLI documentation: ProxySG Command Line =\nReferenceProxySG API to =\ngather data and integrate with other reporting =\nproductsQ=\n2) Can't the policy be reflected in Excel format instead of XML format =\nin WEB VPM?<=\nbr>Currently ProxySG do not support =\nthe option to export policy to excel format. If you noticed before, in =\nthe policy trace, the policy is structured as a line of command which is =\ncheck one by one with MISS and MATCH status. As ProxySG are built to use =\nmultiple layer like forwarding, authentication and access with different =\nformat and function, it almost impossible to create a general rule which =\ncan fit into Excel row and =\ncolumn. Regards,Fauzee\n\n\tname=\"image003.jpg\"\n\nANBRRQAfbJ/7/wCgqxZSvLK5kOSF44oooA//2Q==\n\n\tname=\"image004.jpg\"",
+      "dateStr": "Tue, 15 Apr 2025 16:11:13 +0900",
+      "dateObj": "2025-04-15T07:11:13.000Z",
+      "preview": "Hi, TeamThank you for your = support.I was thinking the same thing about the contents, but I = opened a case because of the customer's request. For now, I understand =",
+      "threadKey": "{case#80026785} ##high - p2 - samsung electronics co,.ltd-is management via api possible in web vpm?"
+    }
+  ]
 }
