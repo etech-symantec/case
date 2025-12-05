@@ -319,10 +319,7 @@
   }
 
   /* --------------------------
-     MIME 본문 디코딩 (Content-Transfer-Encoding 반영)
-  -------------------------- */
-  /* --------------------------
-     MIME 본문 디코딩 (Content-Transfer-Encoding 반영 수정본)
+     MIME 본문 디코딩 (수정됨)
   -------------------------- */
   function decodeText(node) {
     if (!node || node.content == null) return "";
@@ -353,32 +350,38 @@
         encHeader = v[0].value.toLowerCase();
     }
 
-    // 3) 데이터 추출 (Uint8Array라면 일단 문자열로 변환하여 핸들링 준비)
+    // 3) 데이터 추출
     let raw = "";
     let isBinary = false;
 
     if (node.content instanceof Uint8Array) {
-      // Base64나 QP는 ASCII 범위이므로 utf-8로 읽어서 문자열로 만듦
+      // Base64나 QP는 ASCII 범위이므로 일단 utf-8로 읽어서 문자열화
       raw = new TextDecoder("utf-8").decode(node.content);
       isBinary = true; 
     } else {
       raw = String(node.content);
     }
     
-    // 4) Base64 디코딩 (헤더가 명시되었거나, 형식이 Base64인 경우)
+    // 4) Base64 디코딩
+    // 헤더가 있거나, 데이터가 Base64 패턴인 경우 시도
     const isB64 = encHeader.includes("base64") || looksLikeBase64(raw);
     
     if (isB64) {
       try {
         const cleaned = raw.replace(/\s+/g, "");
+        // 빈 문자열이면 중단
+        if(cleaned.length === 0) return "";
+        
         const bin = atob(cleaned); // Base64 -> Binary String
         const bytes = Uint8Array.from([...bin].map((c) => c.charCodeAt(0))); // Binary String -> Bytes
         return new TextDecoder(charset).decode(bytes); // Bytes -> Text (Charset 적용)
       } catch (err) {
-        console.warn("base64 decode fail, trying raw:", err);
-        // 실패 시 원본 반환하되, 바이너리였으면 charset 적용 시도
+        console.warn("base64 decode fail, trying fallback:", err);
+        // 실패 시: 원본이 바이너리(Uint8Array)였다면 해당 charset으로 직접 디코딩 시도
         if (isBinary && node.content instanceof Uint8Array) {
+           try {
              return new TextDecoder(charset).decode(node.content);
+           } catch(e2) { return raw; }
         }
       }
     }
@@ -389,7 +392,7 @@
       qp = qp.replace(/=([0-9A-Fa-f]{2})/g, (m, hex) =>
         String.fromCharCode(parseInt(hex, 16))
       );
-      // QP 디코딩 결과는 바이너리 스트링일 수 있으므로(euc-kr 등), 다시 바이트 변환 후 디코딩
+      // QP 결과가 바이너리 스트링(euc-kr 등)일 수 있으므로 바이트 변환 후 재디코딩
       try {
           const bytes = Uint8Array.from([...qp].map(c => c.charCodeAt(0)));
           return new TextDecoder(charset).decode(bytes);
@@ -398,8 +401,7 @@
       }
     }
     
-    // 6) 그 외 (일반 텍스트)
-    // 인코딩이 없는데 바이너리 상태로 왔다면, 해당 Charset으로 디코딩해서 반환
+    // 6) 그 외 (일반 텍스트인데 바이너리로 들어온 경우)
     if (isBinary && node.content instanceof Uint8Array) {
        try {
          return new TextDecoder(charset).decode(node.content);
